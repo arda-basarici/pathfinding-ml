@@ -39,6 +39,7 @@ class BenchmarkRow:
     path_cost: float
     optimal_cost: float
     found: bool
+    maze_style: str | None = None
 
     @property
     def optimality_gap(self) -> float:
@@ -80,6 +81,7 @@ def run_benchmark(mazes: list[Maze], model, window: int = 2) -> list[BenchmarkRo
                     path_cost=result.path_cost,
                     optimal_cost=optimal_cost,
                     found=result.found,
+                    maze_style=maze.style,
                 )
             )
     return rows

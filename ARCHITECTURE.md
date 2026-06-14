@@ -105,6 +105,14 @@ during search. Pure speed optimisation: identical `h` values, identical node cou
 (a test asserts it matches the per-cell `LearnedHeuristic`), but it makes benchmarking
 practical when A* queries thousands of cells. The per-cell version is kept for clarity.
 
+**D12 — Analyse within-group, and report distributions, not just means.**
+`evaluation/analysis.py` segments every metric by maze *style* (scattered vs structured)
+and reports the optimality-gap *distribution* (fraction optimal, median, p90, max), not
+only its mean. Pooling across maze types hides where a heuristic actually wins or fails;
+a mean gap hides whether it's uniformly small or a heavy tail. Same discipline as the
+steam-reviews within-group test: make a pattern prove itself inside each subgroup before
+believing the pooled number. `Maze.style` and `BenchmarkRow.maze_style` carry the tag.
+
 ## Build order (one unit ≈ one commit)
 
 1. `maze/` — grid + generators (+ tests: bounds, passability, solvable mazes) ✅
@@ -115,6 +123,7 @@ practical when A* queries thousands of cells. The per-cell version is kept for c
 6. `model/` — Manhattan baseline + trained regressor + learned-heuristic bridge ✅
 7. `evaluation/` — heuristic quality, then the search benchmark ✅
 8. `experiments/` — full pipeline run + charts ✅  (narrative writeup at the finish line)
+9. `evaluation/analysis.py` — within-group segmentation + gap distribution ✅  (story extraction)
 
 ## Open / revisit later
 

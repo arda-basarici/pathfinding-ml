@@ -117,6 +117,7 @@ def _make_solvable(
     rng: np.random.Generator,
     attempts: int,
     min_separation: int,
+    style: str,
 ) -> Maze | None:
     """Pick a reachable start/goal at least ``min_separation`` apart (Manhattan).
 
@@ -127,7 +128,7 @@ def _make_solvable(
         start = _random_passable(grid, rng)
         goal = _random_passable(grid, rng)
         if _manhattan(start, goal) >= min_separation and _reachable(grid, start, goal):
-            return Maze(grid, start, goal)
+            return Maze(grid, start, goal, style)
     return None
 
 
@@ -159,12 +160,14 @@ def make_mazes(
 
         if rng.random() < structured_fraction:
             grid = structured_maze(height, width, rng)
+            style = "structured"
         else:
             density = float(rng.uniform(*density_range))
             grid = random_obstacles(height, width, density, rng)
+            style = "scattered"
 
         min_separation = max(1, int(min_separation_frac * max(grid.height, grid.width)))
-        maze = _make_solvable(grid, rng, endpoint_attempts, min_separation)
+        maze = _make_solvable(grid, rng, endpoint_attempts, min_separation, style)
         if maze is not None:
             mazes.append(maze)
     return mazes

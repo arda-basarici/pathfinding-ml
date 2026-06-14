@@ -71,8 +71,13 @@ class Maze:
 
     Separated from ``Grid`` on purpose — the grid is the static map; start/goal are
     the *question* asked of it. Generators return these, already verified solvable.
+
+    ``style`` records which generator made it ("scattered" / "structured"), so analysis
+    can segment results by maze type (the within-group view). Optional so hand-built
+    test mazes don't need it.
     """
 
     grid: Grid
     start: Cell
     goal: Cell
+    style: str | None = None

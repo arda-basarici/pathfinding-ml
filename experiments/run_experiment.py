@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 from pathfinding.data.dataset import assemble  # noqa: E402
+from pathfinding.evaluation.analysis import gap_distribution, summarize_by_style  # noqa: E402
 from pathfinding.evaluation.heuristic_quality import evaluate  # noqa: E402
 from pathfinding.evaluation.search_benchmark import run_benchmark, summarize  # noqa: E402
 from pathfinding.maze.generator import make_mazes  # noqa: E402
@@ -78,6 +79,30 @@ def print_summary(summary) -> None:
             f"(manhattan stays optimal at {am['mean_optimality_gap']:.2%})"
         )
         print("  (Read honestly: fewer nodes is only a win if the optimality gap stays small.)")
+
+
+def print_gap_distribution(rows) -> None:
+    print("\n--- Optimality-gap distribution (is it uniform, or a bad tail?) ---")
+    for algo, heur in [("astar", "learned"), ("greedy", "learned"), ("greedy", "manhattan")]:
+        d = gap_distribution(rows, algo, heur)
+        if d["n"]:
+            print(
+                f"  {algo + ' + ' + heur:24} optimal {d['frac_optimal']:5.0%}  "
+                f"median {d['median'] * 100:5.2f}%  p90 {d['p90'] * 100:6.2f}%  "
+                f"max {d['max'] * 100:6.2f}%"
+            )
+
+
+def print_by_style(rows) -> None:
+    print("\n--- By maze type (within-group: don't pool what you can separate) ---")
+    for style, summary in summarize_by_style(rows).items():
+        n = next(iter(summary.values()))["n"] if summary else 0
+        print(f"  [{style}]  ({int(n)} mazes)")
+        for (algo, heur), s in sorted(summary.items()):
+            print(
+                f"    {algo + ' + ' + heur:24}{s['mean_nodes_expanded']:>10.1f} nodes"
+                f"{s['mean_optimality_gap'] * 100:>8.2f}% gap"
+            )
 
 
 def plot_tradeoff(summary, path: Path) -> None:
@@ -146,8 +171,11 @@ def main() -> None:
 
     test_mazes = [mazes[i] for i in data.test_maze_ids]
     print(f"\nbenchmarking search on {len(test_mazes)} held-out mazes...")
-    summary = summarize(run_benchmark(test_mazes, model))
+    rows = run_benchmark(test_mazes, model)
+    summary = summarize(rows)
     print_summary(summary)
+    print_gap_distribution(rows)
+    print_by_style(rows)
 
     FIG_DIR.mkdir(parents=True, exist_ok=True)
     plot_tradeoff(summary, FIG_DIR / "tradeoff.png")

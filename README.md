@@ -45,7 +45,7 @@ tests/         pytest
 main.py        CLI: generate | label | train | evaluate
 ```
 
-## Two honesty hooks built into the structure
+## Three honesty hooks built into the structure
 
 - **Whole-maze holdout.** Cells from one maze share structure, so a random cell-level
   split leaks test answers through neighbours. `data/dataset.py` splits by whole maze and
@@ -53,6 +53,10 @@ main.py        CLI: generate | label | train | evaluate
 - **Admissibility, reported.** A learned heuristic isn't guaranteed to never overestimate,
   and overestimation is exactly what breaks A*'s optimality. We report how often and by how
   much it overestimates — not just average error.
+- **Two maze distributions.** We train and test across two unlike generators
+  (scattered-obstacle and structured), on purpose: a heuristic that only works on one
+  style has overfit to that style. Testing across distributions is a generalization check,
+  not a convenience.
 
 ## Status
 

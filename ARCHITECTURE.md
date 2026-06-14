@@ -47,14 +47,44 @@ tradeoff frontier; collapsing it to a single number would hide the whole finding
 Small tabular feature set → boosted trees are the strong default and the right-tool
 choice. A net here would be the wrong-tool signal and is Phase 3's territory. The project
 is about the measurement, not the architecture.
+*Decided:* no neural-net comparison in this project — deferred to a later, DL-focused
+project where the net is the point. Adding one here would buy nothing and dilute scope.
 
-**D7 — Multiple maze generators.**
-Scattered-obstacle and structured (recursive-division) mazes, so a heuristic that only
-works on one style is exposed as overfit. Mixing generators is part of the honesty story.
+**D7 — Two maze generators, from the start.**
+Scattered-obstacle and structured (recursive-backtracker / perfect) mazes, so a heuristic that only
+works on one style is exposed as overfit. *Decided:* both generators from day one, not
+one-then-maybe-two. Training and testing across two *unlike* maze distributions is a
+deliberate generalization / robustness check — it guards against the model learning one
+generator's quirks instead of something about pathfinding. This rationale is stated
+explicitly in the README and the final writeup, because choosing it on purpose (rather
+than for convenience) is itself part of the honesty story.
+
+**D8 — `Grid` is immutable; `Maze` is separate.**
+`Grid` (height, width, frozenset of blocked cells) is a frozen dataclass: hashable,
+cacheable, and impossible to mutate under a running search. A frozenset of blocked
+cells (rather than a NumPy array) is plenty for our sizes (≤ 45×45) and keeps the type
+simple; revisit only if we scale up enough that neighbour lookups dominate. `Maze`
+(grid + start + goal) is a separate type: the grid is the static *map*, start/goal are
+the *question* asked of it. Generators return `Maze` instances already verified solvable.
+`Grid` holds no search/reachability logic on purpose — a data structure shouldn't know
+how to explore itself.
+
+**D9 — Maze generation specifics.**
+- *Structured style = recursive backtracker* (randomized DFS), which produces a
+  *perfect* maze: fully connected, no loops. Connectivity is therefore free — any two
+  passable cells are reachable — and its long forced detours are exactly the case where
+  Manhattan distance is a poor estimate, i.e. where a learned heuristic has room to help.
+- *Scattered style = independent random blocking* at a per-maze density; can be
+  disconnected, so we **reject-and-redraw** until start/goal are reachable.
+- *Variation axes:* per maze we randomise size (each side uniform in [15, 45]) and, for
+  the scattered style, density (uniform in [0.20, 0.35]) — a scale/density axis on top
+  of the two styles (D7). Random start/goal per maze, not fixed corners, so the heuristic
+  faces varied queries.
+- *Reproducibility:* all randomness flows through an injected `numpy.random.Generator`.
 
 ## Build order (one unit ≈ one commit)
 
-1. `maze/` — grid + generators (+ tests: bounds, passability, solvable mazes)
+1. `maze/` — grid + generators (+ tests: bounds, passability, solvable mazes) ✅
 2. `search/` — dijkstra / a* / greedy on one instrumented core (+ test: A* path is optimal)
 3. `data/labels.py` — backward cost-to-go (+ test: matches search distances)
 4. `data/features.py` — features with hypotheses

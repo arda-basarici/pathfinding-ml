@@ -92,3 +92,28 @@ def assemble(
     X_train, y_train = _rows_for(mazes, train_ids, names, window)
     X_test, y_test = _rows_for(mazes, test_ids, names, window)
     return Dataset(X_train, y_train, X_test, y_test, train_ids, test_ids)
+
+
+def assemble_from_splits(
+    train_mazes: list[Maze],
+    test_mazes: list[Maze],
+    feature_names: list[str] | None = None,
+    window: int = 2,
+) -> Dataset:
+    """Build a Dataset from explicit, already-disjoint train and test populations.
+
+    For cross-distribution experiments (e.g. train on scattered mazes, test on
+    structured) — no random split, the two populations are the split. The leakage guard
+    is satisfied by construction since they're different maze sets.
+    """
+    names = DEFAULT_FEATURES if feature_names is None else feature_names
+    X_train, y_train = _rows_for(train_mazes, list(range(len(train_mazes))), names, window)
+    X_test, y_test = _rows_for(test_mazes, list(range(len(test_mazes))), names, window)
+    return Dataset(
+        X_train,
+        y_train,
+        X_test,
+        y_test,
+        train_maze_ids=list(range(len(train_mazes))),
+        test_maze_ids=list(range(len(test_mazes))),
+    )

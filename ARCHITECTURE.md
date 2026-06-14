@@ -195,6 +195,7 @@ that are **reproducible** (seed + config + code version).
 11. Run persistence — save config + metrics + git hash + seed per run, no overwrite ✅
 12. Size/density tagging + bucketed within-group analysis (+ tests)
 13. Feature-importance reporting (permutation importance, MAE units) ✅
+14. `--add`/`--drop` feature flags + cross-regime train/test (`--train-style`/`--test-style`) ✅
 
 ## Open / revisit later
 

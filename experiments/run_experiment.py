@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 from pathfinding.config import ExperimentConfig  # noqa: E402
-from pathfinding.data.dataset import assemble  # noqa: E402
+from pathfinding.data.dataset import assemble, assemble_from_splits  # noqa: E402
 from pathfinding.data.features import resolve_feature_names  # noqa: E402
 from pathfinding.evaluation.analysis import gap_distribution, summarize_by_style  # noqa: E402
 from pathfinding.evaluation.heuristic_quality import evaluate  # noqa: E402
@@ -40,6 +40,9 @@ from pathfinding.model.train import train_model  # noqa: E402
 from pathfinding.persistence import build_record, save_run  # noqa: E402
 
 RUNS_DIR = Path(__file__).resolve().parent / "runs"
+
+# Map a maze "style" to the structured_fraction that produces it.
+_STYLE_SF = {"scattered": 0.0, "structured": 1.0, "mixed": 0.5}
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,6 +64,18 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--add", type=str, default=None, help="features to add to the default six")
     p.add_argument("--drop", type=str, default=None, help="features to drop from the default six")
+    p.add_argument(
+        "--train-style",
+        choices=["scattered", "structured", "mixed"],
+        default=None,
+        help="cross-regime: train on this maze style (requires --test-style)",
+    )
+    p.add_argument(
+        "--test-style",
+        choices=["scattered", "structured", "mixed"],
+        default=None,
+        help="cross-regime: test on this maze style (requires --train-style)",
+    )
     return p.parse_args()
 
 
@@ -75,6 +90,8 @@ def build_config(args: argparse.Namespace) -> ExperimentConfig:
         )
     except ValueError as e:
         raise SystemExit(str(e))
+    if bool(args.train_style) != bool(args.test_style):
+        raise SystemExit("cross-regime needs both --train-style and --test-style")
     return ExperimentConfig(
         n=args.n,
         seed=args.seed,
@@ -86,6 +103,8 @@ def build_config(args: argparse.Namespace) -> ExperimentConfig:
         learning_rate=args.learning_rate,
         max_iter=args.max_iter,
         feature_names=feature_names,
+        train_style=args.train_style,
+        test_style=args.test_style,
     )
 
 
@@ -212,26 +231,41 @@ def main() -> None:
     config = build_config(parse_args())
     rng = np.random.default_rng(config.seed)
 
-    print(
-        f"generating {config.n} mazes (sizes {config.size_min}-{config.size_max}, "
-        f"structured_fraction={config.structured_fraction})..."
-    )
     print(f"features ({len(config.feature_names)}): {', '.join(config.feature_names)}")
-    mazes = make_mazes(
-        config.n,
-        rng,
-        size_range=config.size_range,
-        structured_fraction=config.structured_fraction,
-    )
 
-    print("assembling dataset (whole-maze holdout)...")
-    data = assemble(
-        mazes,
-        test_fraction=config.test_fraction,
-        rng=rng,
-        feature_names=config.feature_names,
-        window=config.window,
-    )
+    if config.train_style and config.test_style:
+        sf_train, sf_test = _STYLE_SF[config.train_style], _STYLE_SF[config.test_style]
+        n_test = max(1, round(config.test_fraction * config.n))
+        print(
+            f"cross-regime: train on {config.train_style} ({config.n} mazes) "
+            f"-> test on {config.test_style} ({n_test} mazes)"
+        )
+        train_mazes = make_mazes(
+            config.n, rng, size_range=config.size_range, structured_fraction=sf_train
+        )
+        test_mazes = make_mazes(
+            n_test, rng, size_range=config.size_range, structured_fraction=sf_test
+        )
+        data = assemble_from_splits(
+            train_mazes, test_mazes, feature_names=config.feature_names, window=config.window
+        )
+    else:
+        print(
+            f"generating {config.n} mazes (sizes {config.size_min}-{config.size_max}, "
+            f"structured_fraction={config.structured_fraction})..."
+        )
+        mazes = make_mazes(
+            config.n, rng, size_range=config.size_range, structured_fraction=config.structured_fraction
+        )
+        data = assemble(
+            mazes,
+            test_fraction=config.test_fraction,
+            rng=rng,
+            feature_names=config.feature_names,
+            window=config.window,
+        )
+        test_mazes = [mazes[i] for i in data.test_maze_ids]
+
     print(
         f"  train: {len(data.y_train)} cells / {len(data.train_maze_ids)} mazes | "
         f"test: {len(data.y_test)} cells / {len(data.test_maze_ids)} mazes"
@@ -254,7 +288,6 @@ def main() -> None:
     )
     print_importance(importance)
 
-    test_mazes = [mazes[i] for i in data.test_maze_ids]
     print(f"\nbenchmarking search on {len(test_mazes)} held-out mazes...")
     rows = run_benchmark(
         test_mazes, model, feature_names=config.feature_names, window=config.window

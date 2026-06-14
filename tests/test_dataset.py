@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from pathfinding.data.dataset import assemble, split_mazes_by_maze
+from pathfinding.data.dataset import assemble, assemble_from_splits, split_mazes_by_maze
 from pathfinding.data.features import FEATURE_NAMES
 from pathfinding.data.labels import true_cost_to_go
 from pathfinding.maze.generator import make_mazes
@@ -57,6 +57,20 @@ def test_row_count_equals_total_reachable_cells():
     )
     assert data.y_train.shape[0] == expected_train
     assert data.y_test.shape[0] == expected_test
+
+
+def test_assemble_from_splits_uses_explicit_populations():
+    rng = np.random.default_rng(0)
+    train_mazes = make_mazes(4, rng, size_range=(11, 15), structured_fraction=0.0)
+    test_mazes = make_mazes(3, rng, size_range=(11, 15), structured_fraction=1.0)
+
+    data = assemble_from_splits(train_mazes, test_mazes)
+
+    assert data.train_maze_ids == list(range(4))
+    assert data.test_maze_ids == list(range(3))
+    assert data.X_train.shape[1] == data.X_test.shape[1]      # same feature width
+    assert data.X_train.shape[0] == data.y_train.shape[0] > 0
+    assert data.X_test.shape[0] == data.y_test.shape[0] > 0
 
 
 def test_labels_are_nonnegative_and_finite():

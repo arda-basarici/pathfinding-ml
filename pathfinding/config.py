@@ -22,6 +22,10 @@ class ExperimentConfig:
     size_min: int = 15
     size_max: int = 45
     structured_fraction: float = 0.5
+    # cross-regime: if both set, train on one maze style and test on another
+    # ("scattered" | "structured" | "mixed"). None => normal same-distribution split.
+    train_style: str | None = None
+    test_style: str | None = None
     # features
     feature_names: list[str] = field(default_factory=lambda: list(DEFAULT_FEATURES))
     window: int = 2

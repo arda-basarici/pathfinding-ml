@@ -2,10 +2,13 @@
 
 Search wants a callable ``(cell, goal) -> float``. The model wants a feature vector.
 ``LearnedHeuristic`` adapts one to the other so a learned model can drop straight into
-``astar``/``greedy`` exactly where ``manhattan`` would go.
+``astar``/``greedy`` exactly where ``manhattan`` would go — and crucially it predicts
+cost-to-go from cheap local features *without solving the maze*. That is the whole
+premise: a cheap estimate in place of the expensive exact answer.
 
-Caveat we will measure, not hide: the learned estimate is not guaranteed admissible,
-so A* using it may return a suboptimal path. That is the experiment.
+Caveat we measure rather than hide: the learned estimate is not guaranteed admissible,
+so A* using it may return a suboptimal path. We clamp predictions at 0 (a negative
+remaining-cost is meaningless) but do nothing to force admissibility.
 """
 
 from __future__ import annotations
@@ -28,4 +31,6 @@ class LearnedHeuristic:
 
     def __call__(self, cell: Cell, goal: Cell) -> float:
         """Predicted cost-to-go from ``cell`` to ``goal`` (model on extracted features)."""
-        raise NotImplementedError  # build step 6
+        vector = feature_vector(self.grid, cell, goal, self.window)
+        prediction = float(self.model.predict([vector])[0])
+        return max(0.0, prediction)

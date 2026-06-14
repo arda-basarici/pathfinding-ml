@@ -74,12 +74,20 @@ how to explore itself.
   *perfect* maze: fully connected, no loops. Connectivity is therefore free — any two
   passable cells are reachable — and its long forced detours are exactly the case where
   Manhattan distance is a poor estimate, i.e. where a learned heuristic has room to help.
-- *Scattered style = independent random blocking* at a per-maze density; can be
-  disconnected, so we **reject-and-redraw** until start/goal are reachable.
+- *Scattered style = independent random blocking* at a per-maze density. This is an
+  **open field with obstacles**, not a walled maze — open cells on the border are
+  terrain, not leaks. The two styles are deliberately *different environments* (sealed
+  corridor maze vs open obstacle field), not two versions of one thing; that contrast is
+  what D7's generalisation test rests on. Scattered grids can be disconnected, so we
+  **reject-and-redraw** until start/goal are reachable.
+- *Endpoint placement:* start and goal are random passable cells (interior or border) —
+  placement affects only the *benchmark queries*, not the per-cell labels, so more
+  variety is a richer test, and the problem is symmetric (no reason to privilege one
+  end). We do require a **minimum start–goal separation** (Manhattan distance ≥ half the
+  larger side) so no instance is trivially short.
 - *Variation axes:* per maze we randomise size (each side uniform in [15, 45]) and, for
   the scattered style, density (uniform in [0.20, 0.35]) — a scale/density axis on top
-  of the two styles (D7). Random start/goal per maze, not fixed corners, so the heuristic
-  faces varied queries.
+  of the two styles (D7).
 - *Reproducibility:* all randomness flows through an injected `numpy.random.Generator`.
 
 ## Build order (one unit ≈ one commit)

@@ -107,16 +107,26 @@ def _random_passable(grid: Grid, rng: np.random.Generator) -> Cell:
             return cell
 
 
+def _manhattan(a: Cell, b: Cell) -> int:
+    """Manhattan distance between two cells."""
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+
 def _make_solvable(
     grid: Grid,
     rng: np.random.Generator,
     attempts: int,
+    min_separation: int,
 ) -> Maze | None:
-    """Pick distinct, reachable start/goal on ``grid``; give up after ``attempts``."""
+    """Pick a reachable start/goal at least ``min_separation`` apart (Manhattan).
+
+    The separation floor rules out trivial instances (start and goal adjacent or
+    nearly so), which would tell the benchmark nothing. Gives up after ``attempts``.
+    """
     for _ in range(attempts):
         start = _random_passable(grid, rng)
         goal = _random_passable(grid, rng)
-        if start != goal and _reachable(grid, start, goal):
+        if _manhattan(start, goal) >= min_separation and _reachable(grid, start, goal):
             return Maze(grid, start, goal)
     return None
 
@@ -130,14 +140,17 @@ def make_mazes(
     size_range: tuple[int, int] = (15, 45),
     density_range: tuple[float, float] = (0.20, 0.35),
     structured_fraction: float = 0.5,
+    min_separation_frac: float = 0.5,
     endpoint_attempts: int = 200,
 ) -> list[Maze]:
     """Generate ``n`` solvable mazes, mixing both styles with varied size/density.
 
     Each maze independently: picks a style (``structured_fraction`` of the time the
     corridor maze), a random height and width in ``size_range``, and — for the
-    scattered style — a random density in ``density_range``. Unsolvable draws (rare;
-    only possible for the scattered style) are discarded and redrawn.
+    scattered style — a random density in ``density_range``. Start and goal are random
+    passable cells at least ``min_separation_frac`` * (larger side) apart in Manhattan
+    distance, so no instance is trivially short. Unsolvable or too-close draws are
+    discarded and redrawn.
     """
     mazes: list[Maze] = []
     while len(mazes) < n:
@@ -150,7 +163,8 @@ def make_mazes(
             density = float(rng.uniform(*density_range))
             grid = random_obstacles(height, width, density, rng)
 
-        maze = _make_solvable(grid, rng, endpoint_attempts)
+        min_separation = max(1, int(min_separation_frac * max(grid.height, grid.width)))
+        maze = _make_solvable(grid, rng, endpoint_attempts, min_separation)
         if maze is not None:
             mazes.append(maze)
     return mazes

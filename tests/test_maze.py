@@ -129,6 +129,9 @@ def test_make_mazes_are_solvable_and_well_formed():
         assert maze.grid.passable(maze.goal)
         # goal genuinely reachable from start
         assert maze.goal in reachable_cells(maze.grid, maze.start)
+        # endpoints non-trivially separated (default min_separation_frac=0.5)
+        separation = abs(maze.start[0] - maze.goal[0]) + abs(maze.start[1] - maze.goal[1])
+        assert separation >= max(1, int(0.5 * max(maze.grid.height, maze.grid.width)))
         # sizes within the requested range (odd coercion stays inside [15, 45])
         assert 15 <= maze.grid.height <= 45
         assert 15 <= maze.grid.width <= 45
@@ -139,3 +142,35 @@ def test_make_mazes_is_reproducible():
     b = make_mazes(5, np.random.default_rng(7))
     assert [m.grid.blocked for m in a] == [m.grid.blocked for m in b]
     assert [(m.start, m.goal) for m in a] == [(m.start, m.goal) for m in b]
+
+
+# --------------------------------------------------------------------------- #
+# Renderer — markers land in the right cells.
+# --------------------------------------------------------------------------- #
+def test_to_ascii_dimensions_and_markers():
+    from pathfinding.maze.grid import Maze
+    from pathfinding.maze.render import to_ascii
+
+    grid = Grid(height=3, width=3, blocked=frozenset({(1, 1)}))
+    maze = Maze(grid, start=(0, 0), goal=(2, 2))
+    lines = to_ascii(maze).split("\n")
+
+    assert len(lines) == 3 and all(len(line) == 3 for line in lines)
+    assert lines[0][0] == "S"      # start
+    assert lines[2][2] == "G"      # goal
+    assert lines[1][1] == "#"      # blocked
+    assert lines[0][1] == " "      # open
+
+
+def test_to_ascii_path_overlay():
+    from pathfinding.maze.grid import Maze
+    from pathfinding.maze.render import to_ascii
+
+    grid = Grid(height=3, width=3, blocked=frozenset())
+    maze = Maze(grid, start=(0, 0), goal=(2, 2))
+    path = [(0, 0), (0, 1), (0, 2), (1, 2), (2, 2)]
+    lines = to_ascii(maze, path=path).split("\n")
+
+    assert lines[0][1] == "*"      # an intermediate path cell
+    assert lines[0][0] == "S"      # endpoints keep their markers, not '*'
+    assert lines[2][2] == "G"

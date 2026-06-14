@@ -10,13 +10,22 @@ Quality is reported as the optimality gap vs the true optimum (Dijkstra / admiss
 A*). The expected and honest result: the learned heuristic expands fewer nodes but
 sometimes returns longer paths. One number can't capture that — the output is the
 tradeoff (a frontier), never a single 'score'.
+
+The combos compared (decision D1/D7): Dijkstra as the uninformed anchor, then A* and
+Greedy each with the classic Manhattan heuristic and with the learned one.
 """
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 
-from ..maze.grid import Cell, Grid
+import numpy as np
+
+from ..maze.grid import Maze
+from ..model.predict import LearnedHeuristic
+from ..search.algorithms import astar, dijkstra, greedy
+from ..search.heuristics import manhattan
 
 
 @dataclass
@@ -33,15 +42,67 @@ class BenchmarkRow:
 
     @property
     def optimality_gap(self) -> float:
-        """``path_cost / optimal_cost - 1`` — 0.0 means optimal path."""
-        raise NotImplementedError  # build step 7
+        """``path_cost / optimal_cost - 1`` — 0.0 means an optimal path."""
+        if self.optimal_cost == 0:
+            return 0.0
+        return self.path_cost / self.optimal_cost - 1.0
 
 
-def run_benchmark(
-    mazes: list[Grid],
-    starts: list[Cell],
-    goals: list[Cell],
-    model,
-) -> list[BenchmarkRow]:
-    """Run every algorithm x heuristic over every test maze; return tidy rows."""
-    raise NotImplementedError  # build step 7
+def run_benchmark(mazes: list[Maze], model, window: int = 2) -> list[BenchmarkRow]:
+    """Run every algorithm x heuristic over every maze; return tidy rows.
+
+    ``model`` is the trained cost-to-go regressor; it's wrapped per maze in a
+    ``LearnedHeuristic`` (features depend on the maze). The Dijkstra run doubles as the
+    optimum each maze's rows are scored against.
+    """
+    rows: list[BenchmarkRow] = []
+    for maze_id, maze in enumerate(mazes):
+        grid, start, goal = maze.grid, maze.start, maze.goal
+        learned = LearnedHeuristic(model, grid, window)
+
+        optimum = dijkstra(grid, start, goal)
+        optimal_cost = optimum.path_cost
+
+        runs = [
+            ("dijkstra", "none", optimum),
+            ("astar", "manhattan", astar(grid, start, goal, manhattan)),
+            ("astar", "learned", astar(grid, start, goal, learned)),
+            ("greedy", "manhattan", greedy(grid, start, goal, manhattan)),
+            ("greedy", "learned", greedy(grid, start, goal, learned)),
+        ]
+        for algorithm, heuristic_name, result in runs:
+            rows.append(
+                BenchmarkRow(
+                    maze_id=maze_id,
+                    algorithm=algorithm,
+                    heuristic=heuristic_name,
+                    nodes_expanded=result.nodes_expanded,
+                    path_cost=result.path_cost,
+                    optimal_cost=optimal_cost,
+                    found=result.found,
+                )
+            )
+    return rows
+
+
+def summarize(rows: list[BenchmarkRow]) -> dict[tuple[str, str], dict[str, float]]:
+    """Aggregate rows by (algorithm, heuristic): mean work, mean gap, found-rate.
+
+    The optimality gap is averaged over *found* rows only (it's undefined otherwise).
+    """
+    groups: dict[tuple[str, str], list[BenchmarkRow]] = defaultdict(list)
+    for row in rows:
+        groups[(row.algorithm, row.heuristic)].append(row)
+
+    summary: dict[tuple[str, str], dict[str, float]] = {}
+    for key, group in groups.items():
+        found = [r for r in group if r.found]
+        summary[key] = {
+            "mean_nodes_expanded": float(np.mean([r.nodes_expanded for r in group])),
+            "mean_optimality_gap": (
+                float(np.mean([r.optimality_gap for r in found])) if found else float("nan")
+            ),
+            "found_rate": len(found) / len(group),
+            "n": float(len(group)),
+        }
+    return summary

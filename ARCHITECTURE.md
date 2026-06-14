@@ -106,7 +106,7 @@ test: A* with an admissible heuristic must return the *same path cost* as Dijkst
 4. `data/features.py` — features with hypotheses ✅
 5. `data/dataset.py` — assembly + whole-maze holdout (+ test: split disjointness) ✅
 6. `model/` — Manhattan baseline + trained regressor + learned-heuristic bridge ✅
-7. `evaluation/` — heuristic quality, then the search benchmark
+7. `evaluation/` — heuristic quality, then the search benchmark ✅
 8. `experiments/` — charts + writeup
 
 ## Open / revisit later

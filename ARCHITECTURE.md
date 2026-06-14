@@ -15,6 +15,17 @@ maze/  →  data/labels  →  data/features  →  data/dataset  →  model/  →
 evaluation, and is the one place node-expansion is counted, so every algorithm is
 measured on the same basis.
 
+## Outcome (in brief)
+
+The full narrative, with figures and reasoning, is in `pathfinding_report.pdf`. In short:
+pooled results were a wash, but within-group analysis revealed the learned heuristic helps
+in corridor mazes and hurts in open fields — a Simpson's reversal. Adding one feature
+(global obstacle density) made it dominate Manhattan: ~17% fewer nodes at ~0.2% optimality
+gap, ~97% of mazes optimal, confirmed across seeds. The deeper finding: that feature is a
+*regime tag* — the outcome is governed by the training distribution, not the model — shown
+by pure-style runs and by asymmetric cross-distribution transfer failure. And three
+features match the full seven.
+
 ## Decisions
 
 **D1 — ML inside the search, not against it.**
@@ -164,8 +175,9 @@ that are **reproducible** (seed + config + code version).
 - **Run persistence** — each run writes config + metrics + git hash + seed to
   `experiments/runs/<id>/`, never overwriting. Variants sit side by side; the report can
   cite "config X at commit Y," reproducible from the CLI.
-- **Analysis tagging** — mazes (and benchmark rows) carry style, size, and density, so
-  results segment by all three (within-group), not just pooled.
+- **Analysis tagging** — mazes (and benchmark rows) carry their *style*, so results
+  segment by maze type (within-group), not just pooled. (Size/density segmentation was
+  planned too but deferred — random-uniform sampling made it unnecessary; see Open.)
 
 ### What we deliberately did NOT do (restraint is a signal)
 
@@ -193,13 +205,20 @@ that are **reproducible** (seed + config + code version).
 *Experiment-driven redesign (see "The turn to experiment-driven design" above):*
 10. `ExperimentConfig` + feature/generator registries + prediction-transform hook (+ tests) ✅
 11. Run persistence — save config + metrics + git hash + seed per run, no overwrite ✅
-12. Size/density tagging + bucketed within-group analysis (+ tests)
+12. Size/density tagging + bucketed analysis — *deferred* (style segmentation carried the story; see Open)
 13. Feature-importance reporting (permutation importance, MAE units) ✅
 14. `--add`/`--drop` feature flags + cross-regime train/test (`--train-style`/`--test-style`) ✅
+15. `experiment.run` + report data/charts + narrative PDF (`generate_report.py`) ✅
 
 ## Open / revisit later
 
 - Acknowledged gaps deferred to a later phase, not forced here: this is **regression**
   (no class-imbalance practice) and **pure simulation** (no real-world-messy-data
   modeling). Both to be covered later in the journey.
+- **Size/density bucketed segmentation: deferred.** Style segmentation carried the story,
+  and with random-uniform sizes at n≈1000 each bucket is well-populated — so stratified
+  sampling/analysis can wait until a question actually needs it.
+- **Findings' open questions** (braided mazes for the structured-optimality caveat;
+  admissibility via the transform hook; regional features vs the global ceiling;
+  per-regime models vs one-model-with-a-tag) are documented in `pathfinding_report.pdf`.
 - 8-connected movement (diagonals) is a possible extension; start 4-connected.

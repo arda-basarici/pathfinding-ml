@@ -1,69 +1,86 @@
 # pathfinding-ml
 
-**Can a learned heuristic make A\* search less work — and what does it cost you?**
+**Can a model learn a better A\* heuristic than Manhattan distance — and how do you actually know whether it helped?**
 
-A* is only as good as its heuristic *h(n)*, the estimate of remaining cost to the goal.
-With an admissible heuristic (Manhattan distance) A* is optimal but can expand a lot of
-the grid. This project trains a model to predict cost-to-go and plugs it in as the
-heuristic, then measures the trade honestly: **fewer nodes expanded, at the price of
-paths that are sometimes longer than optimal.**
+A* finds shortest paths quickly when its *heuristic* — its estimate of the distance still
+to go — is good. Manhattan distance is the classic estimate, but it's blind to walls. This
+project trains a model to predict true cost-to-go and plugs it in as the heuristic, then
+measures the result honestly, on two axes that are never collapsed into one: **nodes
+expanded** (speed) and **optimality gap** (path quality).
 
-It is deliberately *not* "ML vs A*." A* is a solved, optimal algorithm — beating it
-head-on is the wrong tool for a settled problem. The interesting question is ML *inside*
-the search, as the heuristic, where the speed/optimality tradeoff actually lives.
+The interesting part turned out not to be the model. It was how much work it took to
+*know* whether the model helped — and how the answer changed as we looked closer.
 
-## The question, precisely
+> **Scope, stated plainly.** This is a deliberately **basic ML project**: a
+> gradient-boosted regressor on a handful of hand-built features, run on *simulated* mazes
+> (open obstacle fields and perfect corridor mazes) on a 4-connected grid. It is a
+> literacy-phase project — its value is the **evaluation discipline**, not model
+> sophistication. It extends the Phase 1 A\* maze-solver.
 
-For known search algorithms, swap the classic heuristic for a learned one and compare on
-two axes that must never collapse into one number:
+## What we found
 
-- **Nodes expanded** — the work the algorithm did (the speed story).
-- **Path optimality gap** — how much longer than the true shortest path (the quality story).
+The full narrative, with figures, is in **[`pathfinding_report.pdf`](pathfinding_report.pdf)**. In short:
 
-The expected, honest result is a *frontier*, not a winner: the learned heuristic trades
-guaranteed-optimal-but-slow for usually-fast-but-sometimes-suboptimal.
-
-## Pipeline
-
-```
-generate mazes → exact cost-to-go labels (backward BFS) → per-cell features
-   → assemble dataset (WHOLE-MAZE holdout) → train regressor
-   → evaluate: heuristic quality + search benchmark → writeup
-```
+- **The average lied.** Pooled over all mazes the learned heuristic looked like a wash.
+  Split by maze type, it *reversed*: a win in corridor mazes, a loss in open fields — a
+  Simpson's-paradox trap. Pool two opposite effects and the average reports nothing.
+- **One feature flipped it.** Adding *global obstacle density* took it to **~17% fewer
+  nodes than Manhattan at a ~0.2% optimality gap**, with ~97% of held-out mazes solved
+  optimally — confirmed across random seeds and at 10,000 mazes.
+- **It was never the feature — it was the data.** Trained on open fields *alone*, the
+  plain model already wins, with no global density. That feature is really a **regime
+  tag**: the result is governed by the *training distribution*, not the model. Train on
+  one maze type and test on the other and it fails — in two opposite ways (too timid, or
+  too reckless).
+- **Three features do the work of seven.** Most of the feature set was redundant.
 
 ## Layout
 
 ```
 pathfinding/
-  maze/        grid representation + maze generators
-  search/      dijkstra / a* / greedy (one instrumented core), heuristics, results
-  data/        exact labels, features (each with a hypothesis), dataset assembly
-  model/       Manhattan baseline, trained cost-to-go regressor, learned-heuristic bridge
-  evaluation/  heuristic quality (accuracy + admissibility), search benchmark (the tradeoff)
-experiments/   notebooks → the tradeoff charts
+  maze/        grid + two generators (scattered field, perfect corridor maze)
+  search/      dijkstra / a* / greedy on one instrumented core; heuristics
+  data/        exact cost-to-go labels, a feature registry, dataset assembly
+  model/       Manhattan baseline, gradient-boosted regressor, learned-heuristic bridge, importance
+  evaluation/  heuristic quality, search benchmark, within-group analysis
+  experiment.py   one run, end to end (shared by the CLI and the report)
+  config.py       ExperimentConfig — the single source of truth for a run
+  persistence.py  save each run (config + metrics + git hash), never overwriting
+experiments/   run_experiment.py (CLI) · saved runs
+generate_report.py · report_data.py · report_charts.py   the narrative PDF
 tests/         pytest
-main.py        CLI: generate | label | train | evaluate
 ```
 
-## Three honesty hooks built into the structure
+Three honesty guards are built into the structure: a **whole-maze train/test split**
+(asserted in code, so correlated cells can't leak), an **admissibility report** (a learned
+heuristic can overestimate and break optimality — we measure how often), and **two unlike
+maze distributions** (a heuristic that only works on one style is exposed as overfit).
 
-- **Whole-maze holdout.** Cells from one maze share structure, so a random cell-level
-  split leaks test answers through neighbours. `data/dataset.py` splits by whole maze and
-  *asserts* the train/test maze sets are disjoint.
-- **Admissibility, reported.** A learned heuristic isn't guaranteed to never overestimate,
-  and overestimation is exactly what breaks A*'s optimality. We report how often and by how
-  much it overestimates — not just average error.
-- **Two maze distributions.** We train and test across two unlike generators
-  (scattered-obstacle and structured), on purpose: a heuristic that only works on one
-  style has overfit to that style. Testing across distributions is a generalization check,
-  not a convenience.
+## Run it
 
-## Status
+```bash
+pip install -r requirements.txt
+python -m pytest                       # the pipeline is fully tested
 
-🔨 Scaffolded. Implementation proceeds one unit at a time (see `ARCHITECTURE.md` for the
-build order and the decisions behind the design).
+# one experiment (saves a reproducible run record + charts)
+python experiments/run_experiment.py --n 1000
+python experiments/run_experiment.py --add global_obstacle_density          # ablate a feature
+python experiments/run_experiment.py --train-style scattered --test-style structured   # transfer
 
-## Context
+# build the narrative report
+python generate_report.py              # writes pathfinding_report.pdf
+```
+
+## What it demonstrates
+
+The subject is pathfinding, but the project is really about the discipline of knowing
+whether a result is real: refusing to trust a pooled average (it inverted), beating a
+*strong* baseline rather than a strawman, separating the metric you can optimise from the
+objective you care about, guarding against leakage, and — the turn that mattered most —
+being willing to overturn your own explanation when the data demands it. The reasoning
+behind every design choice is logged in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+---
 
 Phase 2 of [AI Journey](../../README.md) — the project where a trained model is the
-centerpiece. Extends the Phase 1 A* maze-solver.
+centrepiece. Code, tests, and the full decision log: github.com/arda-basarici/ai-journey

@@ -90,10 +90,18 @@ how to explore itself.
   of the two styles (D7).
 - *Reproducibility:* all randomness flows through an injected `numpy.random.Generator`.
 
+**D10 — One instrumented best-first core for all three algorithms.**
+Dijkstra, A*, and Greedy are the *same* search differing only in the frontier priority
+(`g`, `g + h`, `h`). They share one `_best_first` function, so node-expansion is counted
+identically and the benchmark compares like with like — any difference in work is the
+algorithm/heuristic, not an accounting artefact. A monotonic counter breaks priority
+ties deterministically (and avoids ever comparing cells). The correctness anchor is a
+test: A* with an admissible heuristic must return the *same path cost* as Dijkstra.
+
 ## Build order (one unit ≈ one commit)
 
 1. `maze/` — grid + generators (+ tests: bounds, passability, solvable mazes) ✅
-2. `search/` — dijkstra / a* / greedy on one instrumented core (+ test: A* path is optimal)
+2. `search/` — dijkstra / a* / greedy on one instrumented core (+ test: A* path is optimal) ✅
 3. `data/labels.py` — backward cost-to-go (+ test: matches search distances)
 4. `data/features.py` — features with hypotheses
 5. `data/dataset.py` — assembly + whole-maze holdout (+ test: split disjointness)

@@ -22,14 +22,22 @@ Heuristic = Callable[[Cell, Cell], float]
 
 def zero(cell: Cell, goal: Cell) -> float:
     """h = 0 everywhere. A* with this heuristic *is* Dijkstra."""
-    raise NotImplementedError  # build step 2
+    return 0.0
 
 
 def manhattan(cell: Cell, goal: Cell) -> float:
-    """|dr| + |dc|. The incumbent baseline; admissible on a 4-connected unit grid."""
-    raise NotImplementedError  # build step 2
+    """|dr| + |dc|. The incumbent baseline; admissible on a 4-connected unit grid.
+
+    Admissible because every step changes row or col by exactly 1, so the true cost is
+    at least the sum of the row and column gaps — Manhattan never overestimates.
+    """
+    return float(abs(cell[0] - goal[0]) + abs(cell[1] - goal[1]))
 
 
 def euclidean(cell: Cell, goal: Cell) -> float:
-    """Straight-line distance. Admissible but an underestimate on a 4-connected grid."""
-    raise NotImplementedError  # build step 2
+    """Straight-line distance. Admissible but an underestimate on a 4-connected grid.
+
+    Always <= Manhattan, so also admissible — but looser, so it guides A* less well
+    (it under-promises more), which usually means more nodes expanded than Manhattan.
+    """
+    return float(((cell[0] - goal[0]) ** 2 + (cell[1] - goal[1]) ** 2) ** 0.5)

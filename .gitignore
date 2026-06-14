@@ -1,0 +1,14 @@
+# Generated artifacts
+data/*
+!data/.gitkeep
+*.pkl
+*.joblib
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Venv (shared venv lives at the phase level)
+.venv/

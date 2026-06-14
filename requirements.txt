@@ -1,0 +1,13 @@
+# Core
+numpy
+pandas
+scikit-learn          # gradient-boosted trees + metrics (the model lives here)
+
+# Visualization (the tradeoff charts)
+matplotlib
+
+# Testing
+pytest
+
+# Optional, swap in if scikit-learn's GBM proves too slow on larger datasets:
+# lightgbm

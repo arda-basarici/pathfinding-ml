@@ -1,0 +1,1 @@
+"""Maze representation and generation."""

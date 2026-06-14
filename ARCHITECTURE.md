@@ -102,7 +102,7 @@ test: A* with an admissible heuristic must return the *same path cost* as Dijkst
 
 1. `maze/` — grid + generators (+ tests: bounds, passability, solvable mazes) ✅
 2. `search/` — dijkstra / a* / greedy on one instrumented core (+ test: A* path is optimal) ✅
-3. `data/labels.py` — backward cost-to-go (+ test: matches search distances)
+3. `data/labels.py` — backward cost-to-go (+ test: matches search distances) ✅
 4. `data/features.py` — features with hypotheses
 5. `data/dataset.py` — assembly + whole-maze holdout (+ test: split disjointness)
 6. `model/` — Manhattan baseline + trained regressor + learned-heuristic bridge

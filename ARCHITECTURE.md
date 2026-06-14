@@ -113,6 +113,71 @@ a mean gap hides whether it's uniformly small or a heavy tail. Same discipline a
 steam-reviews within-group test: make a pattern prove itself inside each subgroup before
 believing the pooled number. `Maze.style` and `BenchmarkRow.maze_style` carry the tag.
 
+## The turn to experiment-driven design
+
+A record of *why* the project pivots from "train one model" to "an apparatus for asking
+honest comparative questions" — and what triggered it. This turn is itself the maturity
+signal, and it was driven by a finding, not by gold-plating.
+
+### The finding that forced it
+
+The first end-to-end run looked like a non-result. Pooled over all held-out mazes, the
+learned heuristic was a wash: A*+learned expanded ~0.5% *more* nodes than A*+Manhattan
+and gave up 1.48% optimality. If we'd stopped there, the verdict was "didn't beat the
+baseline."
+
+Segmenting by maze style (the within-group view, D12) reversed it. The pooled average
+was hiding two opposite effects that nearly cancelled:
+
+- **Scattered (open) mazes:** learned is *worse* — more nodes and a ~5% gap. Manhattan
+  is already near-exact in open space, so there's nothing to gain and the model's
+  overestimation only adds error.
+- **Structured (corridor) mazes:** learned is *better* — ~7% fewer nodes at a 0% gap.
+  Manhattan is a weak guide where walls force detours (it barely beats blind Dijkstra
+  there), so a learned estimate has room to help.
+
+A textbook pooling / Simpson's reversal: the honest result isn't "it didn't work," it's
+"it helps exactly where the classic heuristic is weak and hurts where it's already
+strong." Two caveats keep us honest — the structured 0% gap is partly *free* (perfect
+mazes have a unique path, so any path is optimal), and the corridor win rested on only 27
+mazes.
+
+### What that implies for how we work
+
+A single result is no longer the deliverable; the *comparisons* are. To claim "the
+corridor win holds" or "global features help in corridors," we must run many controlled
+variants — feature sets, maze mixes, sizes, later model objectives — and compare them
+reliably. That needs three things the one-shot script lacked: variants expressed as
+**configuration** (not code edits), runs that are **saved, not overwritten**, and results
+that are **reproducible** (seed + config + code version).
+
+### The plan / the design
+
+- **`ExperimentConfig`** — one dataclass is the single source of truth for a run (data
+  params, feature set, model params, transforms), saved with the run. A new knob is a new
+  field; nothing else moves.
+- **Registries** (name → function) for the things we'll *extend* — **features** and
+  **maze generators** — so adding an option (a global feature; a braided-maze generator)
+  is a registration, not a refactor.
+- **Prediction → heuristic transform hook** — default identity; the seam where the
+  admissibility experiment (scale down / penalise overestimation) will plug in.
+- **Run persistence** — each run writes config + metrics + git hash + seed to
+  `experiments/runs/<id>/`, never overwriting. Variants sit side by side; the report can
+  cite "config X at commit Y," reproducible from the CLI.
+- **Analysis tagging** — mazes (and benchmark rows) carry style, size, and density, so
+  results segment by all three (within-group), not just pooled.
+
+### What we deliberately did NOT do (restraint is a signal)
+
+- **No stratified/factorial maze generation.** At n ≈ 1000, random-uniform sizes already
+  give ~150 mazes per size bucket — enough to read the trend. We add the *analysis*
+  (bucketed segmentation) now and would add stratified *generation* only if coverage came
+  out thin. Don't build sampling machinery to solve what large N already solves. (Guard
+  against confounding size with density/style by segmenting within-group, not by design.)
+- **No configurable benchmark frame, alternative model classes, or experiment-tracking
+  tools** (MLflow / W&B / DVC). Out of scope for a literacy phase. The registry pattern
+  means any of these can be added later cheaply, so we don't pay for them now.
+
 ## Build order (one unit ≈ one commit)
 
 1. `maze/` — grid + generators (+ tests: bounds, passability, solvable mazes) ✅
@@ -124,6 +189,11 @@ believing the pooled number. `Maze.style` and `BenchmarkRow.maze_style` carry th
 7. `evaluation/` — heuristic quality, then the search benchmark ✅
 8. `experiments/` — full pipeline run + charts ✅  (narrative writeup at the finish line)
 9. `evaluation/analysis.py` — within-group segmentation + gap distribution ✅  (story extraction)
+
+*Experiment-driven redesign (see "The turn to experiment-driven design" above):*
+10. `ExperimentConfig` + feature/generator registries + prediction-transform hook (+ tests)
+11. Run persistence — save config + metrics + git hash + seed per run, no overwrite
+12. Size/density tagging + bucketed within-group analysis (+ tests)
 
 ## Open / revisit later
 

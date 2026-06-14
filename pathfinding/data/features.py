@@ -150,3 +150,34 @@ def extract_features(
 ) -> dict[str, float]:
     """The default six features as a name->value dict (for inspection/tests)."""
     return {name: FEATURE_FUNCS[name](grid, cell, goal, window) for name in DEFAULT_FEATURES}
+
+
+def resolve_feature_names(
+    features: list[str] | None = None,
+    add: list[str] | None = None,
+    drop: list[str] | None = None,
+) -> list[str]:
+    """Resolve a feature set for a run.
+
+    ``features`` (if given) is the explicit full list; otherwise start from
+    ``DEFAULT_FEATURES``, remove ``drop``, then append ``add``. Validates names and
+    requires ``manhattan_to_goal`` (it anchors the Manhattan baseline).
+    """
+    if features:
+        names = list(features)
+    else:
+        names = list(DEFAULT_FEATURES)
+        if drop:
+            dropping = set(drop)
+            names = [f for f in names if f not in dropping]
+        if add:
+            for f in add:
+                if f not in names:
+                    names.append(f)
+
+    unknown = [f for f in names if f not in FEATURE_FUNCS]
+    if unknown:
+        raise ValueError(f"unknown features: {unknown}; available: {sorted(FEATURE_FUNCS)}")
+    if "manhattan_to_goal" not in names:
+        raise ValueError("manhattan_to_goal must remain (it anchors the Manhattan baseline)")
+    return names

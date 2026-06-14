@@ -11,7 +11,11 @@ import numpy as np
 import pytest
 
 from pathfinding.config import ExperimentConfig
-from pathfinding.data.features import DEFAULT_FEATURES, feature_vector
+from pathfinding.data.features import (
+    DEFAULT_FEATURES,
+    feature_vector,
+    resolve_feature_names,
+)
 from pathfinding.maze.generator import (
     GENERATORS,
     make_mazes,
@@ -130,3 +134,29 @@ def test_transform_custom_replaces_default():
     grid = Grid(5, 5, frozenset())
     h = LearnedHeuristic(_Dummy(-3.0), grid, transform=lambda p: float(p) * 2)
     assert h((0, 0), (4, 4)) == -6.0
+
+
+# --------------------------------------------------------------------------- #
+# Feature-set resolution (--features / --add / --drop).
+# --------------------------------------------------------------------------- #
+def test_resolve_default():
+    assert resolve_feature_names() == DEFAULT_FEATURES
+
+
+def test_resolve_add_and_drop():
+    names = resolve_feature_names(add=["global_obstacle_density"], drop=["blocked_neighbors"])
+    assert "global_obstacle_density" in names
+    assert "blocked_neighbors" not in names
+    assert names[0] == "manhattan_to_goal"
+
+
+def test_resolve_explicit_features_override():
+    names = resolve_feature_names(features=["manhattan_to_goal", "global_obstacle_density"])
+    assert names == ["manhattan_to_goal", "global_obstacle_density"]
+
+
+def test_resolve_rejects_unknown_and_missing_manhattan():
+    with pytest.raises(ValueError):
+        resolve_feature_names(add=["bogus_feature"])
+    with pytest.raises(ValueError):
+        resolve_feature_names(drop=["manhattan_to_goal"])

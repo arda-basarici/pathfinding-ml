@@ -29,7 +29,7 @@ import numpy as np  # noqa: E402
 
 from pathfinding.config import ExperimentConfig  # noqa: E402
 from pathfinding.data.dataset import assemble  # noqa: E402
-from pathfinding.data.features import FEATURE_FUNCS  # noqa: E402
+from pathfinding.data.features import resolve_feature_names  # noqa: E402
 from pathfinding.evaluation.analysis import gap_distribution, summarize_by_style  # noqa: E402
 from pathfinding.evaluation.heuristic_quality import evaluate  # noqa: E402
 from pathfinding.evaluation.search_benchmark import run_benchmark, summarize  # noqa: E402
@@ -57,21 +57,25 @@ def parse_args() -> argparse.Namespace:
         "--features",
         type=str,
         default=None,
-        help="comma-separated feature names (default: the six baseline features)",
+        help="comma-separated full feature list (overrides --add/--drop)",
     )
+    p.add_argument("--add", type=str, default=None, help="features to add to the default six")
+    p.add_argument("--drop", type=str, default=None, help="features to drop from the default six")
     return p.parse_args()
 
 
+def _split(s: str | None) -> list[str] | None:
+    return [x.strip() for x in s.split(",") if x.strip()] if s else None
+
+
 def build_config(args: argparse.Namespace) -> ExperimentConfig:
-    feature_names = None
-    if args.features:
-        feature_names = [f.strip() for f in args.features.split(",") if f.strip()]
-        unknown = [f for f in feature_names if f not in FEATURE_FUNCS]
-        if unknown:
-            raise SystemExit(
-                f"unknown feature(s): {unknown}\navailable: {sorted(FEATURE_FUNCS)}"
-            )
-    kwargs = dict(
+    try:
+        feature_names = resolve_feature_names(
+            _split(args.features), _split(args.add), _split(args.drop)
+        )
+    except ValueError as e:
+        raise SystemExit(str(e))
+    return ExperimentConfig(
         n=args.n,
         seed=args.seed,
         test_fraction=args.test_fraction,
@@ -81,10 +85,8 @@ def build_config(args: argparse.Namespace) -> ExperimentConfig:
         window=args.window,
         learning_rate=args.learning_rate,
         max_iter=args.max_iter,
+        feature_names=feature_names,
     )
-    if feature_names is not None:
-        kwargs["feature_names"] = feature_names
-    return ExperimentConfig(**kwargs)
 
 
 def print_quality(model_q, base_q) -> None:

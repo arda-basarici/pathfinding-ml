@@ -15,7 +15,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..maze.grid import Cell, Grid
+from ..maze.grid import Maze
+from .features import FEATURE_NAMES, feature_vector
+from .labels import true_cost_to_go
 
 
 @dataclass
@@ -36,18 +38,53 @@ def split_mazes_by_maze(
     rng: np.random.Generator,
 ) -> tuple[list[int], list[int]]:
     """Partition maze indices into disjoint train/test id lists (whole-maze holdout)."""
-    raise NotImplementedError  # build step 5
+    order = rng.permutation(n_mazes)
+    n_test = int(round(test_fraction * n_mazes))
+    test_ids = sorted(int(i) for i in order[:n_test])
+    train_ids = sorted(int(i) for i in order[n_test:])
+    return train_ids, test_ids
+
+
+def _rows_for(
+    mazes: list[Maze],
+    ids: list[int],
+    window: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Build (X, y) for the given maze ids: one row per reachable cell."""
+    X: list[list[float]] = []
+    y: list[float] = []
+    for i in ids:
+        maze = mazes[i]
+        costs = true_cost_to_go(maze.grid, maze.goal)   # reachable cells only
+        for cell, cost in costs.items():
+            X.append(feature_vector(maze.grid, cell, maze.goal, window))
+            y.append(cost)
+
+    if not X:   # keep a 2-D shape even when empty, so models see the right width
+        return (
+            np.empty((0, len(FEATURE_NAMES)), dtype=float),
+            np.empty((0,), dtype=float),
+        )
+    return np.asarray(X, dtype=float), np.asarray(y, dtype=float)
 
 
 def assemble(
-    mazes: list[Grid],
-    goals: list[Cell],
+    mazes: list[Maze],
     test_fraction: float,
     rng: np.random.Generator,
+    window: int = 2,
 ) -> Dataset:
-    """Build the full dataset and ASSERT train/test maze ids are disjoint.
+    """Build the full dataset and ASSERT the split is a clean whole-maze holdout.
 
-    The disjointness assertion is the codified leakage guard — if a refactor ever
-    reintroduces cell-level mixing, this fails loudly.
+    The assertions are the codified leakage guard: if a refactor ever reintroduces
+    cell-level mixing or drops a maze, these fail loudly.
     """
-    raise NotImplementedError  # build step 5
+    train_ids, test_ids = split_mazes_by_maze(len(mazes), test_fraction, rng)
+
+    # Leakage guard: no maze in both splits, and together they cover every maze.
+    assert set(train_ids).isdisjoint(test_ids), "maze leaked across train/test"
+    assert set(train_ids) | set(test_ids) == set(range(len(mazes))), "mazes dropped"
+
+    X_train, y_train = _rows_for(mazes, train_ids, window)
+    X_test, y_test = _rows_for(mazes, test_ids, window)
+    return Dataset(X_train, y_train, X_test, y_test, train_ids, test_ids)

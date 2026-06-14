@@ -194,6 +194,7 @@ that are **reproducible** (seed + config + code version).
 10. `ExperimentConfig` + feature/generator registries + prediction-transform hook (+ tests) ✅
 11. Run persistence — save config + metrics + git hash + seed per run, no overwrite ✅
 12. Size/density tagging + bucketed within-group analysis (+ tests)
+13. Feature-importance reporting (permutation importance, MAE units) ✅
 
 ## Open / revisit later
 

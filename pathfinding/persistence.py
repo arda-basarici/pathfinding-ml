@@ -34,9 +34,11 @@ def _key(pair: tuple[str, str]) -> str:
     return f"{pair[0]}+{pair[1]}"
 
 
-def build_record(config, model_q, base_q, summary, gap_dists, by_style) -> dict:
+def build_record(
+    config, model_q, base_q, summary, gap_dists, by_style, feature_importance=None
+) -> dict:
     """Assemble the JSON-serialisable record for a run (no run_id/timestamp yet)."""
-    return {
+    record = {
         "git_hash": git_hash(),
         "config": config.to_dict(),
         "axis1_quality": {
@@ -49,6 +51,12 @@ def build_record(config, model_q, base_q, summary, gap_dists, by_style) -> dict:
             style: {_key(k): v for k, v in s.items()} for style, s in by_style.items()
         },
     }
+    if feature_importance is not None:
+        record["feature_importance"] = [
+            {"feature": name, "importance_mean": mean, "importance_std": std}
+            for (name, mean, std) in feature_importance
+        ]
+    return record
 
 
 def save_run(runs_root: Path, record: dict, run_id: str | None = None) -> Path:

@@ -35,6 +35,7 @@ from pathfinding.evaluation.heuristic_quality import evaluate  # noqa: E402
 from pathfinding.evaluation.search_benchmark import run_benchmark, summarize  # noqa: E402
 from pathfinding.maze.generator import make_mazes  # noqa: E402
 from pathfinding.model.baseline import ManhattanBaseline  # noqa: E402
+from pathfinding.model.importance import feature_importance  # noqa: E402
 from pathfinding.model.train import train_model  # noqa: E402
 from pathfinding.persistence import build_record, save_run  # noqa: E402
 
@@ -119,6 +120,12 @@ def print_summary(summary) -> None:
         print("  (Read honestly: fewer nodes is only a win if the optimality gap stays small.)")
 
 
+def print_importance(importance) -> None:
+    print("\n--- Feature importance (permutation, MAE units on held-out cells) ---")
+    for name, mean, std in importance:
+        print(f"  {name:26}{mean:8.3f}  ± {std:.3f}")
+
+
 def print_gap_distribution(rows) -> None:
     print("\n--- Optimality-gap distribution (is it uniform, or a bad tail?) ---")
     for algo, heur in [("astar", "learned"), ("greedy", "learned"), ("greedy", "manhattan")]:
@@ -186,6 +193,19 @@ def plot_quality(model_q, base_q, path: Path) -> None:
     plt.close(fig)
 
 
+def plot_importance(importance, path: Path) -> None:
+    names = [n for n, _, _ in importance][::-1]      # reverse so largest is on top
+    means = [m for _, m, _ in importance][::-1]
+    stds = [s for _, _, s in importance][::-1]
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.barh(names, means, xerr=stds, color="#4C72B0")
+    ax.set_xlabel("permutation importance (MAE worsening when shuffled)")
+    ax.set_title("What the model relies on (held-out cells)")
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
+
+
 def main() -> None:
     config = build_config(parse_args())
     rng = np.random.default_rng(config.seed)
@@ -227,6 +247,11 @@ def main() -> None:
     base_q = evaluate(data.y_test, ManhattanBaseline(config.feature_names).predict(data.X_test))
     print_quality(model_q, base_q)
 
+    importance = feature_importance(
+        model, data.X_test, data.y_test, config.feature_names, seed=config.seed
+    )
+    print_importance(importance)
+
     test_mazes = [mazes[i] for i in data.test_maze_ids]
     print(f"\nbenchmarking search on {len(test_mazes)} held-out mazes...")
     rows = run_benchmark(
@@ -240,11 +265,12 @@ def main() -> None:
     # Persist this run (config + metrics + git hash) to its own directory — no overwrite.
     gap_dists = {f"{a}+{h}": gap_distribution(rows, a, h) for (a, h) in summary}
     record = build_record(
-        config, model_q, base_q, summary, gap_dists, summarize_by_style(rows)
+        config, model_q, base_q, summary, gap_dists, summarize_by_style(rows), importance
     )
     run_dir = save_run(RUNS_DIR, record)
     plot_tradeoff(summary, run_dir / "tradeoff.png")
     plot_quality(model_q, base_q, run_dir / "heuristic_quality.png")
+    plot_importance(importance, run_dir / "feature_importance.png")
     print(f"\nrun saved to {run_dir}")
 
 

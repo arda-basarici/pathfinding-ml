@@ -13,30 +13,56 @@ remaining-cost is meaningless) but do nothing to force admissibility.
 
 from __future__ import annotations
 
-from ..data.features import feature_vector
+from typing import Callable
+
+from ..data.features import DEFAULT_FEATURES, feature_vector
 from ..maze.grid import Cell, Grid
+
+# A transform maps a raw model prediction to a heuristic value. The default clamps at 0
+# (a negative remaining-cost is meaningless). The admissibility experiment plugs in here
+# (e.g. scale predictions down so the heuristic stops overestimating).
+Transform = Callable[[float], float]
+
+
+def _clamp_nonneg(prediction: float) -> float:
+    return max(0.0, float(prediction))
 
 
 class LearnedHeuristic:
     """Wrap a trained model as a search heuristic over a fixed maze.
 
     Bound to one ``grid`` because features depend on the maze; rebuild per maze at
-    evaluation time.
+    evaluation time. ``feature_names`` must match what the model was trained on.
     """
 
-    def __init__(self, model, grid: Grid, window: int = 2) -> None:
+    def __init__(
+        self,
+        model,
+        grid: Grid,
+        feature_names: list[str] | None = None,
+        window: int = 2,
+        transform: Transform | None = None,
+    ) -> None:
         self.model = model
         self.grid = grid
+        self.feature_names = DEFAULT_FEATURES if feature_names is None else feature_names
         self.window = window
+        self.transform = transform or _clamp_nonneg
 
     def __call__(self, cell: Cell, goal: Cell) -> float:
         """Predicted cost-to-go from ``cell`` to ``goal`` (model on extracted features)."""
-        vector = feature_vector(self.grid, cell, goal, self.window)
-        prediction = float(self.model.predict([vector])[0])
-        return max(0.0, prediction)
+        vector = feature_vector(self.grid, cell, goal, self.feature_names, self.window)
+        return self.transform(self.model.predict([vector])[0])
 
 
-def precompute_learned_heuristic(model, grid: Grid, goal: Cell, window: int = 2):
+def precompute_learned_heuristic(
+    model,
+    grid: Grid,
+    goal: Cell,
+    feature_names: list[str] | None = None,
+    window: int = 2,
+    transform: Transform | None = None,
+):
     """A fast learned heuristic: predict cost-to-go for *all* passable cells in ONE
     batched call, then serve cheap lookups.
 
@@ -44,6 +70,9 @@ def precompute_learned_heuristic(model, grid: Grid, goal: Cell, window: int = 2)
     identical — but it avoids the per-cell ``model.predict`` overhead, which matters
     because A* can query thousands of cells. Bound to one grid + goal.
     """
+    names = DEFAULT_FEATURES if feature_names is None else feature_names
+    tf = transform or _clamp_nonneg
+
     cells = [
         (r, c)
         for r in range(grid.height)
@@ -53,9 +82,9 @@ def precompute_learned_heuristic(model, grid: Grid, goal: Cell, window: int = 2)
     if not cells:
         return lambda cell, goal_: 0.0
 
-    vectors = [feature_vector(grid, cell, goal, window) for cell in cells]
+    vectors = [feature_vector(grid, cell, goal, names, window) for cell in cells]
     predictions = model.predict(vectors)
-    table = {cell: max(0.0, float(p)) for cell, p in zip(cells, predictions)}
+    table = {cell: tf(p) for cell, p in zip(cells, predictions)}
 
     def heuristic(cell: Cell, goal_: Cell) -> float:
         return table.get(cell, 0.0)

@@ -13,14 +13,24 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..data.features import FEATURE_NAMES
-
-# Which column of a feature vector holds the Manhattan distance.
-_MANHATTAN_COL = FEATURE_NAMES.index("manhattan_to_goal")
+from ..data.features import DEFAULT_FEATURES
 
 
 class ManhattanBaseline:
-    """Predicts cost-to-go as the Manhattan-distance feature (nothing to fit)."""
+    """Predicts cost-to-go as the Manhattan-distance feature (nothing to fit).
+
+    Config-aware: it locates ``manhattan_to_goal`` within the *active* feature set, so it
+    still works under feature ablations — as long as that feature is present (it's the
+    baseline, so requiring it is reasonable).
+    """
+
+    def __init__(self, feature_names: list[str] | None = None) -> None:
+        names = DEFAULT_FEATURES if feature_names is None else feature_names
+        if "manhattan_to_goal" not in names:
+            raise ValueError(
+                "ManhattanBaseline requires 'manhattan_to_goal' in the feature set"
+            )
+        self._col = names.index("manhattan_to_goal")
 
     def fit(self, X=None, y=None) -> "ManhattanBaseline":
         """No-op. Present only so the baseline matches the model's fit/predict API."""
@@ -29,4 +39,4 @@ class ManhattanBaseline:
     def predict(self, X) -> np.ndarray:
         """Return the ``manhattan_to_goal`` column straight through as the estimate."""
         X = np.asarray(X, dtype=float)
-        return X[:, _MANHATTAN_COL]
+        return X[:, self._col]

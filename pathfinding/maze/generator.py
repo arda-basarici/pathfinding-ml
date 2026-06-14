@@ -80,6 +80,32 @@ def structured_maze(height: int, width: int, rng: np.random.Generator) -> Grid:
 
 
 # --------------------------------------------------------------------------- #
+# Generator registry — the seam for adding new maze styles (e.g. braided) later
+# without touching make_mazes' control flow.
+# --------------------------------------------------------------------------- #
+def _gen_scattered(
+    height: int,
+    width: int,
+    rng: np.random.Generator,
+    density_range: tuple[float, float] = (0.20, 0.35),
+) -> Grid:
+    """Scattered style: random obstacles at a per-maze density."""
+    density = float(rng.uniform(*density_range))
+    return random_obstacles(height, width, density, rng)
+
+
+def _gen_structured(height: int, width: int, rng: np.random.Generator) -> Grid:
+    """Structured style: a perfect corridor maze."""
+    return structured_maze(height, width, rng)
+
+
+GENERATORS = {
+    "scattered": _gen_scattered,
+    "structured": _gen_structured,
+}
+
+
+# --------------------------------------------------------------------------- #
 # Solvability + endpoint selection.
 # --------------------------------------------------------------------------- #
 def _reachable(grid: Grid, start: Cell, goal: Cell) -> bool:
@@ -159,11 +185,10 @@ def make_mazes(
         width = int(rng.integers(size_range[0], size_range[1] + 1))
 
         if rng.random() < structured_fraction:
-            grid = structured_maze(height, width, rng)
+            grid = GENERATORS["structured"](height, width, rng)
             style = "structured"
         else:
-            density = float(rng.uniform(*density_range))
-            grid = random_obstacles(height, width, density, rng)
+            grid = GENERATORS["scattered"](height, width, rng, density_range)
             style = "scattered"
 
         min_separation = max(1, int(min_separation_frac * max(grid.height, grid.width)))

@@ -27,7 +27,9 @@ matplotlib.use("Agg")  # write files, no display needed
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
+from pathfinding.config import ExperimentConfig  # noqa: E402
 from pathfinding.data.dataset import assemble  # noqa: E402
+from pathfinding.data.features import FEATURE_FUNCS  # noqa: E402
 from pathfinding.evaluation.analysis import gap_distribution, summarize_by_style  # noqa: E402
 from pathfinding.evaluation.heuristic_quality import evaluate  # noqa: E402
 from pathfinding.evaluation.search_benchmark import run_benchmark, summarize  # noqa: E402
@@ -40,12 +42,47 @@ FIG_DIR = Path(__file__).resolve().parent / "figures"
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--n", type=int, default=150, help="number of mazes")
+    p.add_argument("--n", type=int, default=1000, help="number of mazes")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--test-fraction", type=float, default=0.25)
     p.add_argument("--size-min", type=int, default=15)
     p.add_argument("--size-max", type=int, default=45)
+    p.add_argument("--structured-fraction", type=float, default=0.5)
+    p.add_argument("--window", type=int, default=2)
+    p.add_argument("--learning-rate", type=float, default=0.1)
+    p.add_argument("--max-iter", type=int, default=300)
+    p.add_argument(
+        "--features",
+        type=str,
+        default=None,
+        help="comma-separated feature names (default: the six baseline features)",
+    )
     return p.parse_args()
+
+
+def build_config(args: argparse.Namespace) -> ExperimentConfig:
+    feature_names = None
+    if args.features:
+        feature_names = [f.strip() for f in args.features.split(",") if f.strip()]
+        unknown = [f for f in feature_names if f not in FEATURE_FUNCS]
+        if unknown:
+            raise SystemExit(
+                f"unknown feature(s): {unknown}\navailable: {sorted(FEATURE_FUNCS)}"
+            )
+    kwargs = dict(
+        n=args.n,
+        seed=args.seed,
+        test_fraction=args.test_fraction,
+        size_min=args.size_min,
+        size_max=args.size_max,
+        structured_fraction=args.structured_fraction,
+        window=args.window,
+        learning_rate=args.learning_rate,
+        max_iter=args.max_iter,
+    )
+    if feature_names is not None:
+        kwargs["feature_names"] = feature_names
+    return ExperimentConfig(**kwargs)
 
 
 def print_quality(model_q, base_q) -> None:
@@ -149,29 +186,51 @@ def plot_quality(model_q, base_q, path: Path) -> None:
 
 
 def main() -> None:
-    args = parse_args()
-    rng = np.random.default_rng(args.seed)
+    config = build_config(parse_args())
+    rng = np.random.default_rng(config.seed)
 
-    print(f"generating {args.n} mazes (sizes {args.size_min}-{args.size_max})...")
-    mazes = make_mazes(args.n, rng, size_range=(args.size_min, args.size_max))
+    print(
+        f"generating {config.n} mazes (sizes {config.size_min}-{config.size_max}, "
+        f"structured_fraction={config.structured_fraction})..."
+    )
+    print(f"features ({len(config.feature_names)}): {', '.join(config.feature_names)}")
+    mazes = make_mazes(
+        config.n,
+        rng,
+        size_range=config.size_range,
+        structured_fraction=config.structured_fraction,
+    )
 
     print("assembling dataset (whole-maze holdout)...")
-    data = assemble(mazes, test_fraction=args.test_fraction, rng=rng)
+    data = assemble(
+        mazes,
+        test_fraction=config.test_fraction,
+        rng=rng,
+        feature_names=config.feature_names,
+        window=config.window,
+    )
     print(
         f"  train: {len(data.y_train)} cells / {len(data.train_maze_ids)} mazes | "
         f"test: {len(data.y_test)} cells / {len(data.test_maze_ids)} mazes"
     )
 
     print("training model...")
-    model = train_model(data.X_train, data.y_train)
+    model = train_model(
+        data.X_train,
+        data.y_train,
+        learning_rate=config.learning_rate,
+        max_iter=config.max_iter,
+    )
 
     model_q = evaluate(data.y_test, model.predict(data.X_test))
-    base_q = evaluate(data.y_test, ManhattanBaseline().predict(data.X_test))
+    base_q = evaluate(data.y_test, ManhattanBaseline(config.feature_names).predict(data.X_test))
     print_quality(model_q, base_q)
 
     test_mazes = [mazes[i] for i in data.test_maze_ids]
     print(f"\nbenchmarking search on {len(test_mazes)} held-out mazes...")
-    rows = run_benchmark(test_mazes, model)
+    rows = run_benchmark(
+        test_mazes, model, feature_names=config.feature_names, window=config.window
+    )
     summary = summarize(rows)
     print_summary(summary)
     print_gap_distribution(rows)

@@ -49,17 +49,26 @@ class BenchmarkRow:
         return self.path_cost / self.optimal_cost - 1.0
 
 
-def run_benchmark(mazes: list[Maze], model, window: int = 2) -> list[BenchmarkRow]:
+def run_benchmark(
+    mazes: list[Maze],
+    model,
+    feature_names: list[str] | None = None,
+    window: int = 2,
+    transform=None,
+) -> list[BenchmarkRow]:
     """Run every algorithm x heuristic over every maze; return tidy rows.
 
-    ``model`` is the trained cost-to-go regressor; it's wrapped per maze in a
-    ``LearnedHeuristic`` (features depend on the maze). The Dijkstra run doubles as the
-    optimum each maze's rows are scored against.
+    ``model`` is the trained cost-to-go regressor; it's wrapped per maze in a learned
+    heuristic (features depend on the maze). ``feature_names`` must match what the model
+    was trained on. The Dijkstra run doubles as the optimum each maze's rows are scored
+    against.
     """
     rows: list[BenchmarkRow] = []
     for maze_id, maze in enumerate(mazes):
         grid, start, goal = maze.grid, maze.start, maze.goal
-        learned = precompute_learned_heuristic(model, grid, goal, window)
+        learned = precompute_learned_heuristic(
+            model, grid, goal, feature_names, window, transform
+        )
 
         optimum = dijkstra(grid, start, goal)
         optimal_cost = optimum.path_cost

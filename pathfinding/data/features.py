@@ -100,6 +100,8 @@ def _line_cells(a: Cell, b: Cell) -> list[Cell]:
 
 
 def _line_of_sight_obstacles(grid: Grid, cell: Cell, goal: Cell, window: int) -> float:
+    # cell and goal are in bounds, so every Bresenham line cell between them is too —
+    # membership in grid.blocked is enough here (no need for the OOB-aware grid.passable).
     interior = _line_cells(cell, goal)[1:-1]   # exclude endpoints
     return float(sum(1 for p in interior if p in grid.blocked))
 

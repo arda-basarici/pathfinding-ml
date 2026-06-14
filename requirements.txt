@@ -1,7 +1,7 @@
 # Core
 numpy
-pandas
 scikit-learn          # gradient-boosted trees + metrics (the model lives here)
+joblib                # model persistence (ships with scikit-learn; listed explicitly)
 
 # Visualization (the tradeoff charts)
 matplotlib
@@ -11,6 +11,9 @@ reportlab
 
 # Testing
 pytest
+
+# Note: for bit-exact reproduction of the cached report numbers, pin numpy and
+# scikit-learn — HistGradientBoostingRegressor internals can shift across releases.
 
 # Optional, swap in if scikit-learn's GBM proves too slow on larger datasets:
 # lightgbm

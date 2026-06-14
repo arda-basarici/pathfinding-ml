@@ -1,6 +1,4 @@
 # Generated artifacts
-data/*
-!data/.gitkeep
 *.pkl
 *.joblib
 

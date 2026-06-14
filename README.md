@@ -26,7 +26,7 @@ The full narrative, with figures, is in **[`pathfinding_report.pdf`](pathfinding
   Simpson's-paradox trap. Pool two opposite effects and the average reports nothing.
 - **One feature flipped it.** Adding *global obstacle density* took it to **~17% fewer
   nodes than Manhattan at a ~0.2% optimality gap**, with ~97% of held-out mazes solved
-  optimally — confirmed across random seeds and at 10,000 mazes.
+  optimally — confirmed across random seeds (and a 10,000-maze spot-check).
 - **It was never the feature — it was the data.** Trained on open fields *alone*, the
   plain model already wins, with no global density. That feature is really a **regime
   tag**: the result is governed by the *training distribution*, not the model. Train on

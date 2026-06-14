@@ -20,3 +20,4 @@ def test_run_cross_regime_record():
     assert rec["config"]["train_style"] == "scattered"
     assert rec["config"]["test_style"] == "structured"
     assert "astar+learned" in rec["axis2_summary"]
+    assert set(rec["by_style"]) == {"structured"}   # test population is pure structured

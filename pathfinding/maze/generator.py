@@ -180,7 +180,15 @@ def make_mazes(
     discarded and redrawn.
     """
     mazes: list[Maze] = []
+    draws = 0
+    max_draws = 50 * n + 100        # guard against a degenerate config looping forever
     while len(mazes) < n:
+        draws += 1
+        if draws > max_draws:
+            raise RuntimeError(
+                f"could not generate {n} solvable mazes in {max_draws} draws — "
+                "check size_range / min_separation_frac / density_range"
+            )
         height = int(rng.integers(size_range[0], size_range[1] + 1))
         width = int(rng.integers(size_range[0], size_range[1] + 1))
 

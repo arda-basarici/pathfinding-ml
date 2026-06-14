@@ -108,7 +108,7 @@ def _imp(rec, feat):
     for d in rec["feature_importance"]:
         if d["feature"] == feat:
             return d["importance_mean"]
-    return 0.0
+    return 0.0   # feature absent from this run's set — treated as zero importance
 
 
 def facts(data):
@@ -272,8 +272,15 @@ def build(data, tmpdir):
            "Each dot is one random seed; the win clusters tightly — not a one-seed fluke.", w=PW * 0.72)
     P(f"And it is not one lucky run. Across three random seeds the +global model expands between "
       f"{f['g_win_abs'][0]:.0f}% and {f['g_win_abs'][-1]:.0f}% fewer nodes, with the optimality gap never "
-      f"above {f['g_gap_max']:.1f}%, and the result holds at 10,000 mazes. The six-feature baseline is "
+      f"above {f['g_gap_max']:.1f}%, and a 10,000-maze spot-check agreed. The six-feature baseline is "
       f"just as consistently a near-wash. The effect is the feature, not the seed.")
+    figure(rc.fig_mix_sweep, "f_mix.png",
+           "The +global node-win as the maze mix shifts; the single headline is just the 50/50 point.",
+           w=PW * 0.70)
+    P(f"One honest qualifier on that headline: the ~{abs(f['g_win']):.0f}% is the 50/50 figure. Slide the "
+      f"proportion of corridor mazes and the pooled win slides with it — larger in open-heavy sets, smaller "
+      f"in corridor-heavy ones. The same lesson again: a single pooled number is an artifact of the mix, so "
+      f"we read every result within maze type.")
     story.append(Paragraph("A learned heuristic can beat a strong, admissible baseline on real search — given the one piece of context it was missing.", S["thesis"]))
     story.append(PageBreak())
 

@@ -8,12 +8,13 @@ maze — the learned heuristic works end to end.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from pathfinding.data.dataset import assemble
 from pathfinding.data.features import FEATURE_NAMES
 from pathfinding.maze.generator import make_mazes
 from pathfinding.model.baseline import ManhattanBaseline
-from pathfinding.model.predict import LearnedHeuristic
+from pathfinding.model.predict import LearnedHeuristic, precompute_learned_heuristic
 from pathfinding.model.train import load_model, save_model, train_model
 from pathfinding.search.algorithms import astar
 
@@ -66,3 +67,21 @@ def test_learned_heuristic_drives_astar_to_valid_path():
     for a, b in zip(path, path[1:]):
         assert abs(a[0] - b[0]) + abs(a[1] - b[1]) == 1   # contiguous
         assert maze.grid.passable(b)                       # stays on passable cells
+
+
+def test_precompute_matches_per_cell_heuristic():
+    # The batched heuristic must give identical values to the per-cell one
+    # (it's a speed optimization, not a behavior change).
+    rng = np.random.default_rng(3)
+    mazes = make_mazes(4, rng, size_range=(11, 15))
+    data = assemble(mazes, test_fraction=0.25, rng=rng)
+    model = train_model(data.X_train, data.y_train)
+
+    maze = mazes[0]
+    per_cell = LearnedHeuristic(model, maze.grid)
+    fast = precompute_learned_heuristic(model, maze.grid, maze.goal)
+
+    for r in range(maze.grid.height):
+        for c in range(maze.grid.width):
+            if maze.grid.passable((r, c)):
+                assert fast((r, c), maze.goal) == pytest.approx(per_cell((r, c), maze.goal))

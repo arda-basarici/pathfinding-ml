@@ -34,3 +34,30 @@ class LearnedHeuristic:
         vector = feature_vector(self.grid, cell, goal, self.window)
         prediction = float(self.model.predict([vector])[0])
         return max(0.0, prediction)
+
+
+def precompute_learned_heuristic(model, grid: Grid, goal: Cell, window: int = 2):
+    """A fast learned heuristic: predict cost-to-go for *all* passable cells in ONE
+    batched call, then serve cheap lookups.
+
+    Same values as ``LearnedHeuristic`` — so search behaviour and node counts are
+    identical — but it avoids the per-cell ``model.predict`` overhead, which matters
+    because A* can query thousands of cells. Bound to one grid + goal.
+    """
+    cells = [
+        (r, c)
+        for r in range(grid.height)
+        for c in range(grid.width)
+        if grid.passable((r, c))
+    ]
+    if not cells:
+        return lambda cell, goal_: 0.0
+
+    vectors = [feature_vector(grid, cell, goal, window) for cell in cells]
+    predictions = model.predict(vectors)
+    table = {cell: max(0.0, float(p)) for cell, p in zip(cells, predictions)}
+
+    def heuristic(cell: Cell, goal_: Cell) -> float:
+        return table.get(cell, 0.0)
+
+    return heuristic

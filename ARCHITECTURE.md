@@ -98,6 +98,13 @@ algorithm/heuristic, not an accounting artefact. A monotonic counter breaks prio
 ties deterministically (and avoids ever comparing cells). The correctness anchor is a
 test: A* with an admissible heuristic must return the *same path cost* as Dijkstra.
 
+**D11 — Batched heuristic prediction at evaluation.**
+`precompute_learned_heuristic` predicts cost-to-go for *all* passable cells in one
+vectorised call, then serves lookups — instead of calling `model.predict` per cell
+during search. Pure speed optimisation: identical `h` values, identical node counts
+(a test asserts it matches the per-cell `LearnedHeuristic`), but it makes benchmarking
+practical when A* queries thousands of cells. The per-cell version is kept for clarity.
+
 ## Build order (one unit ≈ one commit)
 
 1. `maze/` — grid + generators (+ tests: bounds, passability, solvable mazes) ✅
@@ -107,7 +114,7 @@ test: A* with an admissible heuristic must return the *same path cost* as Dijkst
 5. `data/dataset.py` — assembly + whole-maze holdout (+ test: split disjointness) ✅
 6. `model/` — Manhattan baseline + trained regressor + learned-heuristic bridge ✅
 7. `evaluation/` — heuristic quality, then the search benchmark ✅
-8. `experiments/` — charts + writeup
+8. `experiments/` — full pipeline run + charts ✅  (narrative writeup at the finish line)
 
 ## Open / revisit later
 

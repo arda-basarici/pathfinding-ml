@@ -23,7 +23,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ..maze.grid import Maze
-from ..model.predict import LearnedHeuristic
+from ..model.predict import precompute_learned_heuristic
 from ..search.algorithms import astar, dijkstra, greedy
 from ..search.heuristics import manhattan
 
@@ -58,7 +58,7 @@ def run_benchmark(mazes: list[Maze], model, window: int = 2) -> list[BenchmarkRo
     rows: list[BenchmarkRow] = []
     for maze_id, maze in enumerate(mazes):
         grid, start, goal = maze.grid, maze.start, maze.goal
-        learned = LearnedHeuristic(model, grid, window)
+        learned = precompute_learned_heuristic(model, grid, goal, window)
 
         optimum = dijkstra(grid, start, goal)
         optimal_cost = optimum.path_cost

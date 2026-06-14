@@ -4,6 +4,9 @@ data/*
 *.pkl
 *.joblib
 
+# Saved experiment runs (force-add the canonical ones you cite: git add -f experiments/runs/<id>)
+experiments/runs/
+
 # Python
 __pycache__/
 *.py[cod]

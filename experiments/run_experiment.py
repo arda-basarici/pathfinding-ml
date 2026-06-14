@@ -36,8 +36,9 @@ from pathfinding.evaluation.search_benchmark import run_benchmark, summarize  # 
 from pathfinding.maze.generator import make_mazes  # noqa: E402
 from pathfinding.model.baseline import ManhattanBaseline  # noqa: E402
 from pathfinding.model.train import train_model  # noqa: E402
+from pathfinding.persistence import build_record, save_run  # noqa: E402
 
-FIG_DIR = Path(__file__).resolve().parent / "figures"
+RUNS_DIR = Path(__file__).resolve().parent / "runs"
 
 
 def parse_args() -> argparse.Namespace:
@@ -236,10 +237,15 @@ def main() -> None:
     print_gap_distribution(rows)
     print_by_style(rows)
 
-    FIG_DIR.mkdir(parents=True, exist_ok=True)
-    plot_tradeoff(summary, FIG_DIR / "tradeoff.png")
-    plot_quality(model_q, base_q, FIG_DIR / "heuristic_quality.png")
-    print(f"\ncharts written to {FIG_DIR}")
+    # Persist this run (config + metrics + git hash) to its own directory — no overwrite.
+    gap_dists = {f"{a}+{h}": gap_distribution(rows, a, h) for (a, h) in summary}
+    record = build_record(
+        config, model_q, base_q, summary, gap_dists, summarize_by_style(rows)
+    )
+    run_dir = save_run(RUNS_DIR, record)
+    plot_tradeoff(summary, run_dir / "tradeoff.png")
+    plot_quality(model_q, base_q, run_dir / "heuristic_quality.png")
+    print(f"\nrun saved to {run_dir}")
 
 
 if __name__ == "__main__":

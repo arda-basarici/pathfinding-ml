@@ -192,7 +192,7 @@ that are **reproducible** (seed + config + code version).
 
 *Experiment-driven redesign (see "The turn to experiment-driven design" above):*
 10. `ExperimentConfig` + feature/generator registries + prediction-transform hook (+ tests) ✅
-11. Run persistence — save config + metrics + git hash + seed per run, no overwrite
+11. Run persistence — save config + metrics + git hash + seed per run, no overwrite ✅
 12. Size/density tagging + bucketed within-group analysis (+ tests)
 
 ## Open / revisit later

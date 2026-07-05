@@ -1,224 +1,161 @@
-# Architecture & Decisions
+# ARCHITECTURE — pathfinding-ml
 
-A decisions log: not just *what* the structure is, but *why*. Living document — append
-as choices are made or revised.
+How the project is built and why that structure — the module graph, the seams, and the
+structural stories, kept as a clean snapshot of the code as it stands. Edited in place; the
+decisions and their reasoning (anchored D1, D2, …) → [DESIGN.md](DESIGN.md); the front door →
+[README.md](README.md).
+
+*Snapshot of the completed project · last updated 2026-07-05.*
+
+---
 
 ## Design shape
 
-One-directional data flow, one job per module:
+One-directional data flow through the library, one job per module; `search/` is the shared
+measuring instrument consumed from both ends:
 
 ```
-maze/  →  data/labels  →  data/features  →  data/dataset  →  model/  →  evaluation/
+        pathfinding/
+          maze/        grid + the two generators (scattered field · perfect corridor)
+             │
+             ▼
+          data/        labels (exact cost-to-go) → features (registry) → dataset assembly
+             │                                                (whole-maze split, asserted)
+             ▼
+          model/       Manhattan baseline · boosted-tree regressor · heuristic bridge ·
+             │         permutation importance
+             ▼
+          evaluation/  axis 1: heuristic quality (accuracy + admissibility)
+             │         axis 2: search benchmark · within-group analysis
+             │
+          search/  ◄───┘   dijkstra / a* / greedy on ONE instrumented best-first core —
+             ▲             the single place node expansion is counted
+             └── also drives label generation (backward sweep)
+
+          config.py       ExperimentConfig — the single source of truth for a run
+          experiment.py   run(config): the full pipeline, end to end
+          persistence.py  save each run (config · metrics · git hash · seed), never overwrite
+
+        experiments/run_experiment.py     the CLI (feature flags, transfer runs)
+        generate_report.py · report_data.py · report_charts.py     the narrative PDF
 ```
 
-`search/` is orthogonal: it's consumed by both label generation (indirectly) and
-evaluation, and is the one place node-expansion is counted, so every algorithm is
-measured on the same basis.
+The rules, stated once:
 
-## Outcome (in brief)
+- **Data types hold no behaviour of their journey.** `Grid` is a frozen dataclass with no
+  search logic (DESIGN D8); rendering is a separate presentation module; search consumes
+  grids, never the other way around.
+- **Everything measured passes through one core.** All three algorithms share the single
+  instrumented best-first function (D10), so every node-expansion count in the project is
+  computed by the same code.
+- **Extension points are registries.** Features and maze generators are name → function
+  registries; the CLI's `--add`/`--drop` and style flags resolve against them. Adding an
+  option is a registration, not a refactor.
+- **Effects at the shell.** The library is pure computation over injected RNGs; file I/O
+  lives in `persistence.py`, the CLI, and the report layer.
 
-The full narrative, with figures and reasoning, is in `pathfinding_report.pdf`. In short:
-pooled results were a wash, but within-group analysis revealed the learned heuristic helps
-in corridor mazes and hurts in open fields — a Simpson's reversal. Adding one feature
-(global obstacle density) made it dominate Manhattan: ~17% fewer nodes at ~0.2% optimality
-gap, ~97% of mazes optimal, confirmed across seeds. The deeper finding: that feature is a
-*regime tag* — the outcome is governed by the training distribution, not the model — shown
-by pure-style runs and by asymmetric cross-distribution transfer failure. And three
-features match the full seven.
+### The life of a run
 
-## Decisions
+```
+  ExperimentConfig + seed
+        │
+        ▼
+  experiment.run(config)      generate mazes → label → featurize → assemble (leakage-guarded)
+        │                     → train → bridge into A* → benchmark → within-group analysis
+        ▼
+  experiments/runs/<id>/      config + metrics + git hash + seed — never overwritten
+        │
+        ▼
+  report_data.py (cached in .report_cache/) → report_charts.py → generate_report.py
+        │
+        ▼
+  pathfinding_report.pdf      (committed)
+```
 
-**D1 — ML inside the search, not against it.**
-The project is a learned *heuristic*, not a learned path-finder competing with A*. A* on
-an admissible heuristic is already optimal; "beat A*" is the wrong framing for a solved
-problem. The real, open question is the speed/optimality tradeoff of a learned heuristic.
+`experiment.run` is shared by the CLI and the report generator — the report's numbers come
+from the same code path as any hand-run experiment, cached rather than recomputed.
 
-**D2 — Exact labels via backward search.**
-The training target is true cost-to-go h*(cell). We get it exactly and cheaply with one
-backward BFS/uniform-cost sweep from the goal — no noise, no approximation. Perfect
-labels are a luxury; they let us isolate the heuristic's behaviour from label error.
+## Module responsibilities
 
-**D3 — Split by whole maze (the leakage guard).**
-Cells within a maze are spatially correlated; a random cell-level train/test split leaks
-neighbours' answers into the test set. We hold out *whole mazes* and assert disjointness
-in `data/dataset.assemble`. This is the project's signature honesty lesson, codified as a
-test rather than a comment.
+One line per module; detail lives in the docstrings.
 
-**D4 — Beat a *strong* baseline.**
-The baseline is the admissible Manhattan heuristic A* already uses — not "predict the
-mean." Beating a fair, already-good baseline is the test with teeth; the honest outcome
-may be "barely," and saying so is the point.
+| module | single job |
+| --- | --- |
+| `maze/grid.py` | `Grid` (frozen: dims + blocked cells) and `Maze` (grid + start + goal) — the map vs the question |
+| `maze/generator.py` | the two generators, both returning verified-solvable `Maze`s with style tags |
+| `maze/render.py` | ASCII rendering for eyeballing generators — presentation only |
+| `search/algorithms.py` | dijkstra / a\* / greedy as one best-first core differing only in frontier priority |
+| `search/heuristics.py` | the heuristic contract `(cell, goal) → float` + the classic estimates |
+| `search/instrumentation.py` | what a run produced and what it cost — `nodes_expanded` is the headline |
+| `data/labels.py` | exact cost-to-go for every cell via one backward sweep from the goal |
+| `data/features.py` | the feature registry: named `(grid, cell, goal, window) → float` functions with hypotheses |
+| `data/dataset.py` | (features, label) assembly with the whole-maze split asserted — the leakage guard |
+| `model/baseline.py` | Manhattan as the *fair* baseline predictor |
+| `model/train.py` | the gradient-boosted regressor (D6) |
+| `model/predict.py` | the bridge: trained model → search `Heuristic`, including the batched precompute |
+| `model/importance.py` | permutation importance in MAE units — what the model actually relies on |
+| `evaluation/heuristic_quality.py` | axis 1: is the estimate good? accuracy and admissibility, kept separate |
+| `evaluation/search_benchmark.py` | axis 2: does search get better, at what optimality cost? (the deliverable) |
+| `evaluation/analysis.py` | within-group segmentation + gap distributions — the numbers-to-story layer |
+| `config.py` · `experiment.py` · `persistence.py` | the run contract: one config, one pipeline, one immutable run record |
+| `experiments/run_experiment.py` | the CLI: one run per invocation, feature and transfer flags |
+| `experiments/inspect_mazes.py` | print a few mazes from the real pipeline — eyeball check for the generators |
+| `report_data.py` · `report_charts.py` · `generate_report.py` | compute (cached) → render → assemble the PDF |
 
-**D5 — Two axes, never one score.**
-Heuristic quality (accuracy *and* admissibility) is reported separately from downstream
-search performance (nodes expanded *vs* path optimality). The deliverable is the
-tradeoff frontier; collapsing it to a single number would hide the whole finding.
+## Seams that carried weight
 
-**D6 — Gradient-boosted trees, not a neural net.**
-Small tabular feature set → boosted trees are the strong default and the right-tool
-choice. A net here would be the wrong-tool signal and is Phase 3's territory. The project
-is about the measurement, not the architecture.
-*Decided:* no neural-net comparison in this project — deferred to a later, DL-focused
-project where the net is the point. Adding one here would buy nothing and dilute scope.
+- **The heuristic contract** — any `(cell, goal) → float` plugs into A\*; Manhattan, the
+  learned bridge, and the batched lookup are interchangeable to the search code.
+- **The feature registry** — every ablation in the study (`--add global_obstacle_density`,
+  three-vs-seven features) was a flag, not a code edit.
+- **The prediction → heuristic transform hook** — default identity; the designed seam for
+  admissibility experiments (documented future work, never needed for the core story).
+- **Style tags on mazes and benchmark rows** — what makes within-group analysis (D12) a
+  `groupby`, not a re-run.
 
-**D7 — Two maze generators, from the start.**
-Scattered-obstacle and structured (recursive-backtracker / perfect) mazes, so a heuristic that only
-works on one style is exposed as overfit. *Decided:* both generators from day one, not
-one-then-maybe-two. Training and testing across two *unlike* maze distributions is a
-deliberate generalization / robustness check — it guards against the model learning one
-generator's quirks instead of something about pathfinding. This rationale is stated
-explicitly in the README and the final writeup, because choosing it on purpose (rather
-than for convenience) is itself part of the honesty story.
+---
 
-**D8 — `Grid` is immutable; `Maze` is separate.**
-`Grid` (height, width, frozenset of blocked cells) is a frozen dataclass: hashable,
-cacheable, and impossible to mutate under a running search. A frozenset of blocked
-cells (rather than a NumPy array) is plenty for our sizes (≤ 45×45) and keeps the type
-simple; revisit only if we scale up enough that neighbour lookups dominate. `Maze`
-(grid + start + goal) is a separate type: the grid is the static *map*, start/goal are
-the *question* asked of it. Generators return `Maze` instances already verified solvable.
-`Grid` holds no search/reachability logic on purpose — a data structure shouldn't know
-how to explore itself.
+## Structural stories
 
-**D9 — Maze generation specifics.**
-- *Structured style = recursive backtracker* (randomized DFS), which produces a
-  *perfect* maze: fully connected, no loops. Connectivity is therefore free — any two
-  passable cells are reachable — and its long forced detours are exactly the case where
-  Manhattan distance is a poor estimate, i.e. where a learned heuristic has room to help.
-- *Scattered style = independent random blocking* at a per-maze density. This is an
-  **open field with obstacles**, not a walled maze — open cells on the border are
-  terrain, not leaks. The two styles are deliberately *different environments* (sealed
-  corridor maze vs open obstacle field), not two versions of one thing; that contrast is
-  what D7's generalisation test rests on. Scattered grids can be disconnected, so we
-  **reject-and-redraw** until start/goal are reachable.
-- *Endpoint placement:* start and goal are random passable cells (interior or border) —
-  placement affects only the *benchmark queries*, not the per-cell labels, so more
-  variety is a richer test, and the problem is symmetric (no reason to privilege one
-  end). We do require a **minimum start–goal separation** (Manhattan distance ≥ half the
-  larger side) so no instance is trivially short.
-- *Variation axes:* per maze we randomise size (each side uniform in [15, 45]) and, for
-  the scattered style, density (uniform in [0.20, 0.35]) — a scale/density axis on top
-  of the two styles (D7).
-- *Reproducibility:* all randomness flows through an injected `numpy.random.Generator`.
+### One instrumented core, three algorithms
 
-**D10 — One instrumented best-first core for all three algorithms.**
-Dijkstra, A*, and Greedy are the *same* search differing only in the frontier priority
-(`g`, `g + h`, `h`). They share one `_best_first` function, so node-expansion is counted
-identically and the benchmark compares like with like — any difference in work is the
-algorithm/heuristic, not an accounting artefact. A monotonic counter breaks priority
-ties deterministically (and avoids ever comparing cells). The correctness anchor is a
-test: A* with an admissible heuristic must return the *same path cost* as Dijkstra.
+Dijkstra, A\*, and Greedy differ *only* in the priority they pop the frontier on (`g`,
+`g + h`, `h`) — so they are one function, not three implementations (D10). Node expansion is
+counted in exactly one place, a monotonic counter breaks priority ties deterministically, and
+the correctness anchor is a test: A\* with an admissible heuristic must return the same path
+cost as Dijkstra. Every comparison in the report inherits this like-for-like guarantee.
 
-**D11 — Batched heuristic prediction at evaluation.**
-`precompute_learned_heuristic` predicts cost-to-go for *all* passable cells in one
-vectorised call, then serves lookups — instead of calling `model.predict` per cell
-during search. Pure speed optimisation: identical `h` values, identical node counts
-(a test asserts it matches the per-cell `LearnedHeuristic`), but it makes benchmarking
-practical when A* queries thousands of cells. The per-cell version is kept for clarity.
+### The leakage guard is an assertion, not a convention
 
-**D12 — Analyse within-group, and report distributions, not just means.**
-`evaluation/analysis.py` segments every metric by maze *style* (scattered vs structured)
-and reports the optimality-gap *distribution* (fraction optimal, median, p90, max), not
-only its mean. Pooling across maze types hides where a heuristic actually wins or fails;
-a mean gap hides whether it's uniformly small or a heavy tail. Same discipline as the
-steam-reviews within-group test: make a pattern prove itself inside each subgroup before
-believing the pooled number. `Maze.style` and `BenchmarkRow.maze_style` carry the tag.
+The whole-maze train/test split (D3) is enforced where the dataset is assembled — the code
+asserts maze-level disjointness, and a test exercises it. The project's most quotable honesty
+lesson lives in the type of guarantee only code can give.
 
-## The turn to experiment-driven design
+### The apparatus, not a script
 
-A record of *why* the project pivots from "train one model" to "an apparatus for asking
-honest comparative questions" — and what triggered it. This turn is itself the maturity
-signal, and it was driven by a finding, not by gold-plating.
+The mid-project pivot (DESIGN — *the turn to experiment-driven design*) left a specific
+structure: `ExperimentConfig` as the single source of truth, `experiment.run` as the one
+pipeline both the CLI and the report call, and immutable run records under
+`experiments/runs/<id>/` carrying config + metrics + git hash + seed. Every claim in the
+report is a citable (config, commit) pair; the transfer experiments and ablations that
+produced the regime-tag finding were CLI flags over this one seam.
 
-### The finding that forced it
+### The report reads, it never re-runs
 
-The first end-to-end run looked like a non-result. Pooled over all held-out mazes, the
-learned heuristic was a wash: A*+learned expanded ~0.5% *more* nodes than A*+Manhattan
-and gave up 1.48% optimality. If we'd stopped there, the verdict was "didn't beat the
-baseline."
+`report_data.py` computes the report's numbers through the same `experiment.run` path and
+caches them (`.report_cache/`, git-ignored); `generate_report.py` renders from the cache.
+Rebuilding the PDF is cheap and cannot silently drift from how experiments are actually run —
+the one honest caveat being that bit-exact reproduction requires pinning numpy/scikit-learn
+(HistGradientBoostingRegressor internals shift across releases; noted in `requirements.txt`).
 
-Segmenting by maze style (the within-group view, D12) reversed it. The pooled average
-was hiding two opposite effects that nearly cancelled:
+---
 
-- **Scattered (open) mazes:** learned is *worse* — more nodes and a ~5% gap. Manhattan
-  is already near-exact in open space, so there's nothing to gain and the model's
-  overestimation only adds error.
-- **Structured (corridor) mazes:** learned is *better* — ~7% fewer nodes at a 0% gap.
-  Manhattan is a weak guide where walls force detours (it barely beats blind Dijkstra
-  there), so a learned estimate has room to help.
+## Deliberately not done
 
-A textbook pooling / Simpson's reversal: the honest result isn't "it didn't work," it's
-"it helps exactly where the classic heuristic is weak and hurts where it's already
-strong." Two caveats keep us honest — the structured 0% gap is partly *free* (perfect
-mazes have a unique path, so any path is optimal), and the corridor win rested on only 27
-mazes.
-
-### What that implies for how we work
-
-A single result is no longer the deliverable; the *comparisons* are. To claim "the
-corridor win holds" or "global features help in corridors," we must run many controlled
-variants — feature sets, maze mixes, sizes, later model objectives — and compare them
-reliably. That needs three things the one-shot script lacked: variants expressed as
-**configuration** (not code edits), runs that are **saved, not overwritten**, and results
-that are **reproducible** (seed + config + code version).
-
-### The plan / the design
-
-- **`ExperimentConfig`** — one dataclass is the single source of truth for a run (data
-  params, feature set, model params, transforms), saved with the run. A new knob is a new
-  field; nothing else moves.
-- **Registries** (name → function) for the things we'll *extend* — **features** and
-  **maze generators** — so adding an option (a global feature; a braided-maze generator)
-  is a registration, not a refactor.
-- **Prediction → heuristic transform hook** — default identity; the seam where the
-  admissibility experiment (scale down / penalise overestimation) will plug in.
-- **Run persistence** — each run writes config + metrics + git hash + seed to
-  `experiments/runs/<id>/`, never overwriting. Variants sit side by side; the report can
-  cite "config X at commit Y," reproducible from the CLI.
-- **Analysis tagging** — mazes (and benchmark rows) carry their *style*, so results
-  segment by maze type (within-group), not just pooled. (Size/density segmentation was
-  planned too but deferred — random-uniform sampling made it unnecessary; see Open.)
-
-### What we deliberately did NOT do (restraint is a signal)
-
-- **No stratified/factorial maze generation.** At n ≈ 1000, random-uniform sizes already
-  give ~150 mazes per size bucket — enough to read the trend. We add the *analysis*
-  (bucketed segmentation) now and would add stratified *generation* only if coverage came
-  out thin. Don't build sampling machinery to solve what large N already solves. (Guard
-  against confounding size with density/style by segmenting within-group, not by design.)
-- **No configurable benchmark frame, alternative model classes, or experiment-tracking
-  tools** (MLflow / W&B / DVC). Out of scope for a literacy phase. The registry pattern
-  means any of these can be added later cheaply, so we don't pay for them now.
-
-## Build order (one unit ≈ one commit)
-
-1. `maze/` — grid + generators (+ tests: bounds, passability, solvable mazes) ✅
-2. `search/` — dijkstra / a* / greedy on one instrumented core (+ test: A* path is optimal) ✅
-3. `data/labels.py` — backward cost-to-go (+ test: matches search distances) ✅
-4. `data/features.py` — features with hypotheses ✅
-5. `data/dataset.py` — assembly + whole-maze holdout (+ test: split disjointness) ✅
-6. `model/` — Manhattan baseline + trained regressor + learned-heuristic bridge ✅
-7. `evaluation/` — heuristic quality, then the search benchmark ✅
-8. `experiments/` — full pipeline run + charts ✅  (narrative writeup at the finish line)
-9. `evaluation/analysis.py` — within-group segmentation + gap distribution ✅  (story extraction)
-
-*Experiment-driven redesign (see "The turn to experiment-driven design" above):*
-10. `ExperimentConfig` + feature/generator registries + prediction-transform hook (+ tests) ✅
-11. Run persistence — save config + metrics + git hash + seed per run, no overwrite ✅
-12. Size/density tagging + bucketed analysis — *deferred* (style segmentation carried the story; see Open)
-13. Feature-importance reporting (permutation importance, MAE units) ✅
-14. `--add`/`--drop` feature flags + cross-regime train/test (`--train-style`/`--test-style`) ✅
-15. `experiment.run` + report data/charts + narrative PDF (`generate_report.py`) ✅
-
-## Open / revisit later
-
-- Acknowledged gaps deferred to a later phase, not forced here: this is **regression**
-  (no class-imbalance practice) and **pure simulation** (no real-world-messy-data
-  modeling). Both to be covered later in the journey.
-- **Size/density bucketed segmentation: deferred.** Style segmentation carried the story,
-  and with random-uniform sizes at n≈1000 each bucket is well-populated — so stratified
-  sampling/analysis can wait until a question actually needs it.
-- **Findings' open questions** (braided mazes for the structured-optimality caveat;
-  admissibility via the transform hook; regional features vs the global ceiling;
-  per-regime models vs one-model-with-a-tag) are documented in `pathfinding_report.pdf`.
-- 8-connected movement (diagonals) is a possible extension; start 4-connected.
+- **No stratified/factorial maze generation.** Random-uniform sampling at n ≈ 1000 populates
+  every size bucket; segmentation in analysis answers what stratified generation would have —
+  machinery avoided because large N already solves it.
+- **No experiment-tracking stack** (MLflow / W&B / DVC) and **no plugin framework beyond the
+  two registries.** Right-sized for a single-question study; the registries keep heavier
+  tooling cheap to adopt if ever needed.
+- **No neural model and no 8-connected movement** — scope decisions, held (DESIGN D6, scope).

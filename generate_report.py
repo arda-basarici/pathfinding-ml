@@ -229,8 +229,8 @@ def build(data, tmpdir):
     P("Two scoping notes up front, in fairness to the reader. Everything here is simulation — two maze "
       "generators only (open scattered fields and perfect corridor mazes) on a 4-connected unit grid — so "
       "the findings describe this controlled world, not real road networks. And the model is deliberately "
-      "simple: a gradient-boosted regressor on a handful of features. This is a literacy-phase project; its "
-      "contribution is the evaluation discipline, not model sophistication.")
+      "simple: a gradient-boosted regressor on a handful of features. This is a deliberately basic ML "
+      "project; its contribution is the evaluation discipline, not model sophistication.")
     story.append(Paragraph("A heuristic is only worth learning if it beats a strong baseline on the metric you actually care about — and proves it on data it never saw.", S["thesis"]))
     story.append(PageBreak())
 

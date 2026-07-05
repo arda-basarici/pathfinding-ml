@@ -13,9 +13,9 @@ The interesting part turned out not to be the model. It was how much work it too
 
 > **Scope, stated plainly.** This is a deliberately **basic ML project**: a
 > gradient-boosted regressor on a handful of hand-built features, run on *simulated* mazes
-> (open obstacle fields and perfect corridor mazes) on a 4-connected grid. It is a
-> literacy-phase project — its value is the **evaluation discipline**, not model
-> sophistication. It extends the Phase 1 A\* maze-solver.
+> (open obstacle fields and perfect corridor mazes) on a 4-connected grid. Its value is the
+> **evaluation discipline** — the work of knowing whether a result is real — not model
+> sophistication.
 
 ## What we found
 
@@ -46,7 +46,7 @@ pathfinding/
   experiment.py   one run, end to end (shared by the CLI and the report)
   config.py       ExperimentConfig — the single source of truth for a run
   persistence.py  save each run (config + metrics + git hash), never overwriting
-experiments/   run_experiment.py (CLI) · saved runs
+experiments/   run_experiment.py (CLI) · inspect_mazes.py (eyeball the generators) · saved runs
 generate_report.py · report_data.py · report_charts.py   the narrative PDF
 tests/         pytest
 ```
@@ -77,10 +77,13 @@ The subject is pathfinding, but the project is really about the discipline of kn
 whether a result is real: refusing to trust a pooled average (it inverted), beating a
 *strong* baseline rather than a strawman, separating the metric you can optimise from the
 objective you care about, guarding against leakage, and — the turn that mattered most —
-being willing to overturn your own explanation when the data demands it. The reasoning
-behind every design choice is logged in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+being willing to overturn your own explanation when the data demands it. The regime-tag
+lesson (*the training distribution governs the result, not the model*) went on to recur as
+a load-bearing diagnostic in the sequel project,
+[blackjack-rl](https://github.com/arda-basarici/blackjack-rl).
 
----
+## Deeper
 
-Phase 2 of [AI Journey](https://github.com/arda-basarici/ai-journey) — the project where
-a trained model is the centrepiece.
+[DESIGN.md](DESIGN.md) — the decisions (D1–D12) and the turn to experiment-driven design ·
+[ARCHITECTURE.md](ARCHITECTURE.md) — the structure and why that shape ·
+[pathfinding_report.pdf](pathfinding_report.pdf) — the full narrative with figures.

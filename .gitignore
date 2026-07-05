@@ -14,5 +14,5 @@ __pycache__/
 .pytest_cache/
 .ipynb_checkpoints/
 
-# Venv (shared venv lives at the phase level)
+# Venv
 .venv/

@@ -12,6 +12,9 @@ reportlab
 # Testing
 pytest
 
+# Notebook kernel (no notebooks in the repo; supports scratch analysis against the venv)
+ipykernel
+
 # Note: for bit-exact reproduction of the cached report numbers, pin numpy and
 # scikit-learn — HistGradientBoostingRegressor internals can shift across releases.
 

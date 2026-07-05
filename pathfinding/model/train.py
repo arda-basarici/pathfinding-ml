@@ -2,14 +2,15 @@
 
 Model choice is deliberate (D6): gradient-boosted trees, not a neural net. On a small
 tabular feature set, boosted trees are the strong default and the right-tool-for-the-job
-choice; a net would be the wrong-tool signal (and is Phase 3's territory). We use
+choice; a net would be the wrong-tool signal (that experiment belongs to a study where
+the network is the point — the sequel project, blackjack-rl, ran it). We use
 scikit-learn's ``HistGradientBoostingRegressor`` — the histogram-based variant (same
 idea as LightGBM): it bins feature values, which makes it fast on tens of thousands of
 rows while remaining ordinary gradient boosting underneath.
 
-The hyperparameters below are sensible defaults, not a tuned configuration — this is a
-literacy phase, and restraint is part of the point. ``random_state`` fixes the model's
-internal randomness so training is reproducible.
+The hyperparameters below are sensible defaults, not a tuned configuration — deliberate
+restraint: the study is about the measurement, not the model. ``random_state`` fixes the
+model's internal randomness so training is reproducible.
 """
 
 from __future__ import annotations

@@ -82,5 +82,5 @@ behind every design choice is logged in [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ---
 
-Phase 2 of [AI Journey](../../README.md) — the project where a trained model is the
-centrepiece. Code, tests, and the full decision log: github.com/arda-basarici/ai-journey
+Phase 2 of [AI Journey](https://github.com/arda-basarici/ai-journey) — the project where
+a trained model is the centrepiece.

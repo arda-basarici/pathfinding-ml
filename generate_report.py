@@ -166,7 +166,7 @@ def build(data, tmpdir):
         story.append(Paragraph(tag, S["kicker"]))
         story.append(Paragraph(txt, S["body"]))
     SP(14); story.append(HRule(PW)); SP(6)
-    P("github.com/arda-basarici/ai-journey &nbsp;·&nbsp; Phase 2 · all results regenerated from seeded runs", "foot")
+    P("github.com/arda-basarici/pathfinding-ml &nbsp;·&nbsp; all results regenerated from seeded runs", "foot")
     story.append(PageBreak())
 
     # ===== EXEC SUMMARY =====
@@ -380,7 +380,7 @@ def build(data, tmpdir):
       "splitting; permutation importance (and its correlated-feature caveat); mixture-of-distributions; "
       "distribution shift / out-of-distribution generalisation; admissibility (Hart, Nilsson &amp; "
       "Raphael, 1968); metric–objective alignment. &nbsp;·&nbsp; Code, tests, and the full "
-      "decision log: github.com/arda-basarici/ai-journey", "foot")
+      "decision log: github.com/arda-basarici/pathfinding-ml", "foot")
 
     return story
 

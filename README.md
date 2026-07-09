@@ -87,3 +87,9 @@ a load-bearing diagnostic in the sequel project,
 [DESIGN.md](DESIGN.md) — the decisions (D1–D12) and the turn to experiment-driven design ·
 [ARCHITECTURE.md](ARCHITECTURE.md) — the structure and why that shape ·
 [pathfinding_report.pdf](pathfinding_report.pdf) — the full narrative with figures.
+
+## License
+
+Code is released under the [MIT License](LICENSE). The report
+([pathfinding_report.pdf](pathfinding_report.pdf)) is © 2026 Arda Başarıcı,
+all rights reserved — included for reading, not licensed for reuse.
